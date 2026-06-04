@@ -1,0 +1,79 @@
+stages:
+  - build
+  - test
+  - release
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - when: never
+
+variables:
+  GO_VERSION: "1.26"
+
+build-job:
+  stage: build
+  image:
+    name: golang:1.26
+    entrypoint: [""]
+  script:
+    - go build ./...
+  artifacts:
+    paths:
+      - bin/
+    when: on_success
+    expire_in: 1 week
+  cache:
+    key: go-modules
+    paths:
+      - .go/pkg/mod
+    policy: pull-push
+    when: on_success
+  retry: 2
+  interruptible: true
+  resource_group: build-group
+
+test-job:
+  stage: test
+  script:
+    - go test ./...
+  coverage: '/coverage: \d+\.\d+%/'
+  allow_failure:
+    exit_codes: [1, 2]
+  parallel: 4
+  needs:
+    - build-job
+  dependencies:
+    - build-job
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+
+release-job:
+  stage: release
+  script:
+    - echo "creating release"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "Release $CI_COMMIT_TAG"
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: on_success
+  environment:
+    name: production
+    url: https://example.com
+    action: start
+  when: on_success
+
+.template:
+  before_script:
+    - echo "before"
+  tags:
+    - docker
+  inherit:
+    default: false
+    variables:
+      - GO_VERSION

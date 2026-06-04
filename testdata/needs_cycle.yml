@@ -1,0 +1,16 @@
+stages:
+  - build
+
+job-a:
+  stage: build
+  script:
+    - echo a
+  needs:
+    - job-b
+
+job-b:
+  stage: build
+  script:
+    - echo b
+  needs:
+    - job-a

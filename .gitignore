@@ -1,0 +1,35 @@
+# Compiled binaries
+gitlab-sim
+gitlab-sim.exe
+dist/
+bin/
+
+# Go test & coverage artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Task runner cache
+.task/
+
+# Claude Code project memory
+.claude/
+
+# Editor — JetBrains
+.idea/
+
+# Editor — VS Code (keep settings/extensions if you want to share them,
+# but ignore personal/machine-specific state)
+.vscode/settings.json
+.vscode/launch.json
+.vscode/*.code-workspace
+
+# Editor — Vim / Neovim
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,128 @@
+stages:
+  - build
+  - test
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: on_success  # ERROR: workflow rules only allow always/never
+
+bad-when-job:
+  stage: build
+  script:
+    - echo hello
+  when: whenever              # ERROR: invalid when value
+
+bad-delayed-job:
+  stage: build
+  script:
+    - echo hello
+  when: delayed               # ERROR: missing start_in
+
+bad-start-in-job:
+  stage: build
+  script:
+    - echo hello
+  start_in: 30 minutes        # ERROR: start_in without when: delayed
+
+bad-parallel-job:
+  stage: build
+  script:
+    - echo hello
+  parallel: 1                 # ERROR: must be 2–200
+
+bad-retry-job:
+  stage: build
+  script:
+    - echo hello
+  retry: 5                    # ERROR: must be 0–2
+
+bad-retry-when-job:
+  stage: build
+  script:
+    - echo hello
+  retry:
+    max: 1
+    when: cosmic_ray          # ERROR: invalid retry.when value
+
+bad-allow-failure-job:
+  stage: build
+  script:
+    - echo hello
+  allow_failure:
+    bad_key: true             # ERROR: map form must have exit_codes
+
+bad-coverage-job:
+  stage: build
+  script:
+    - echo hello
+  coverage: "not-a-regex"    # ERROR: must be wrapped in /
+
+bad-release-job:
+  stage: build
+  script:
+    - echo hello
+  release:
+    description: "no tag"    # ERROR: missing tag_name
+
+bad-environment-job:
+  stage: test
+  script:
+    - echo hello
+  environment:
+    url: https://example.com  # ERROR: url without name
+
+bad-environment-action-job:
+  stage: test
+  script:
+    - echo hello
+  environment:
+    name: staging
+    action: dance             # ERROR: invalid action value
+
+bad-artifacts-when-job:
+  stage: build
+  script:
+    - echo hello
+  artifacts:
+    paths:
+      - dist/
+    when: sometimes           # ERROR: invalid artifacts.when
+
+bad-cache-policy-job:
+  stage: build
+  script:
+    - echo hello
+  cache:
+    paths:
+      - .cache/
+    policy: read-write        # ERROR: invalid cache.policy
+
+bad-dependencies-job:
+  stage: test
+  script:
+    - echo hello
+  dependencies:
+    - nonexistent-job         # ERROR: unknown job
+
+bad-dependencies-stage-job:
+  stage: build
+  script:
+    - echo hello
+  needs:
+    - test-job
+  dependencies:
+    - test-job                # ERROR: test-job is in a later stage
+
+test-job:
+  stage: test
+  script:
+    - echo test
+
+bad-rule-when-job:
+  stage: build
+  script:
+    - echo hello
+  rules:
+    - if: '$CI_MERGE_REQUEST_ID'
+      when: sometimes         # ERROR: invalid rules[0].when

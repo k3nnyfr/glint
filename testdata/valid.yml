@@ -1,0 +1,26 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  APP_ENV: production
+
+build-job:
+  stage: build
+  script:
+    - echo "Building..."
+    - go build ./...
+
+test-job:
+  stage: test
+  script:
+    - go test ./...
+
+deploy-job:
+  stage: deploy
+  script:
+    - echo "Deploying to $APP_ENV"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success

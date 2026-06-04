@@ -1,0 +1,23 @@
+stages:
+  - build
+  - test
+
+build-job:
+  stage: build
+  script:
+    - echo "ok"
+
+bad-stage-job:
+  stage: nonexistent
+  script:
+    - echo "this stage does not exist"
+
+no-script-job:
+  stage: test
+
+deprecated-job:
+  stage: test
+  script:
+    - echo "old style"
+  only:
+    - main

@@ -1,0 +1,59 @@
+version: "3"
+
+vars:
+  BINARY: gitlab-sim
+  GO: /usr/local/go/bin/go
+
+tasks:
+  default:
+    desc: List available tasks
+    cmd: task --list
+
+  build:
+    desc: Build the gitlab-sim binary
+    cmds:
+      - "{{.GO}} build -o {{.BINARY}} ./cmd/gitlab-sim/..."
+    sources:
+      - "**/*.go"
+      - go.mod
+    generates:
+      - "{{.BINARY}}"
+
+  test:
+    desc: Run Go unit tests
+    cmd: "{{.GO}} test ./..."
+
+  validate:
+    desc: Run gitlab-sim against all testdata fixtures
+    deps: [build]
+    cmds:
+      - cmd: ./{{.BINARY}} testdata/valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} testdata/extends.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} testdata/keywords_valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} testdata/invalid.yml
+        ignore_error: true
+      - cmd: ./{{.BINARY}} testdata/needs.yml
+        ignore_error: true
+      - cmd: ./{{.BINARY}} testdata/needs_cycle.yml
+        ignore_error: true
+      - cmd: ./{{.BINARY}} testdata/keywords_invalid.yml
+        ignore_error: true
+
+  lint-go:
+    desc: Run go vet on all packages
+    cmd: "{{.GO}} vet ./..."
+
+  ci:
+    desc: Full CI check — vet, test, build, validate
+    cmds:
+      - task: lint-go
+      - task: test
+      - task: build
+      - task: validate
+
+  clean:
+    desc: Remove build artifacts
+    cmd: rm -f {{.BINARY}}

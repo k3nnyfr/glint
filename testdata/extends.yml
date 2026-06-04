@@ -1,0 +1,28 @@
+stages:
+  - build
+  - test
+
+# Template — no script of its own; should NOT trigger "missing script"
+.base:
+  image: golang:1.26
+  before_script:
+    - go env
+
+# Inherits image + before_script from .base, adds its own script
+build-job:
+  extends: .base
+  stage: build
+  script:
+    - go build ./...
+
+# Multi-level: .test-base extends .base, test-job extends .test-base
+.test-base:
+  extends: .base
+  stage: test
+  variables:
+    CGO_ENABLED: "0"
+
+test-job:
+  extends: .test-base
+  script:
+    - go test ./...

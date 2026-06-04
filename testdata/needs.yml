@@ -1,0 +1,40 @@
+stages:
+  - build
+  - test
+  - deploy
+
+build-job:
+  stage: build
+  script:
+    - go build ./...
+
+test-job:
+  stage: test
+  script:
+    - go test ./...
+  needs:
+    - build-job          # OK: build comes before test
+
+deploy-job:
+  stage: deploy
+  script:
+    - echo "deploy"
+  needs:
+    - job: test-job
+      artifacts: true    # OK: test comes before deploy
+
+# Bad: needs a job in a later stage
+bad-needs-job:
+  stage: build
+  script:
+    - echo "bad"
+  needs:
+    - test-job           # ERROR: test is after build
+
+# Bad: needs a job that doesn't exist
+missing-needs-job:
+  stage: test
+  script:
+    - echo "bad"
+  needs:
+    - nonexistent-job    # ERROR: job doesn't exist
