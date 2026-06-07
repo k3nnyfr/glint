@@ -9,6 +9,25 @@ This project does not yet use semantic versioning; entries are listed under `[Un
 
 ### Added
 
+- **Graph output (`--graph`)** — visualises the pipeline instead of running lint rules:
+  - `--graph includes` — [Mermaid](https://mermaid.js.org) flowchart of include dependencies written to stdout; one node per `include:` entry (project, component, local, remote, template), colour-coded by type; pipe to a `.mmd` file or paste into [mermaid.live](https://mermaid.live)
+  - `--graph pipeline` — GitLab CI-style SVG/PNG pipeline graph written to a timestamped file in `--graph-out` (default: `gitlab-sim-out/`); jobs rendered as white chip cards with a coloured status indicator (blue: regular, orange: manual, purple: trigger, amber: delayed); DAG mode draws job-to-job Bézier arrows when any job has `needs:`, classic mode draws L-shaped connectors between stage columns; converted to PNG automatically when `rsvg-convert`, `inkscape`, or `magick` is available
+  - `--graph all` — include Mermaid to stdout, pipeline file path to stderr
+  - New `internal/graph` package (`includes.go`, `pipeline.go`, `render.go`); no new external dependencies
+
+- **CI/CD catalog component resolution** — resolves `include: component:` references from the GitLab CI/CD Catalog:
+  - Reference format: `<host>/<project-path>/<component-name>@<version>` (host determines which GitLab instance is queried)
+  - Tries single-file layout (`templates/<name>.yml`) then directory layout (`templates/<name>/template.yml`) automatically
+  - Public catalog components are fetched without authentication (no token required)
+  - References containing CI variables (e.g. `$CI_SERVER_FQDN`) are skipped with a warning — they cannot be resolved at lint time
+  - Jobs imported from a component may use `$[[ inputs.xxx ]]` input placeholders in stage names; the stage validation check is skipped for those values rather than producing false positives
+- **Remote project include resolution** — fetches `include: project:` templates from the GitLab REST API before linting; jobs from remote templates are merged into the pipeline so `extends:`, `needs:`, and `dependencies:` references can be validated across file boundaries
+  - Token auto-discovery: `GITLAB_TOKEN` (→ `PRIVATE-TOKEN` header) → `CI_JOB_TOKEN` (→ `JOB-TOKEN` header) → `GITLAB_PRIVATE_TOKEN`
+  - Instance URL auto-discovery: `--gitlab-url` flag → `CI_SERVER_URL` → `GITLAB_URL` → `https://gitlab.com`
+  - `--token` and `--gitlab-url` CLI flags for explicit overrides
+  - `file:` accepts both string and list-of-strings forms
+  - Project includes require a token; they are skipped with a `WARNING` when none is configured
+  - Component includes attempt the fetch unauthenticated first; a `WARNING` is emitted only on failure
 - **Comprehensive keyword validation** — checks for all major GitLab CI YAML keywords based on the official docs:
   - `when` valid values: `on_success`, `on_failure`, `always`, `manual`, `delayed`, `never`
   - `start_in` only allowed when `when: delayed`; error if set without it

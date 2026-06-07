@@ -41,6 +41,10 @@ tasks:
         ignore_error: true
       - cmd: ./{{.BINARY}} testdata/keywords_invalid.yml
         ignore_error: true
+      - cmd: ./{{.BINARY}} testdata/includes_project.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} testdata/includes_component.yml
+        ignore_error: false
 
   lint-go:
     desc: Run go vet on all packages

@@ -13,7 +13,11 @@ func Parse(path string) (*Pipeline, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
+	return ParseBytes(data)
+}
 
+// ParseBytes parses YAML from an in-memory byte slice.
+func ParseBytes(data []byte) (*Pipeline, error) {
 	// First pass: decode into a raw map to extract job keys.
 	var raw map[string]yaml.Node
 	if err := yaml.Unmarshal(data, &raw); err != nil {

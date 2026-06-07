@@ -4,6 +4,9 @@ gitlab-sim.exe
 dist/
 bin/
 
+# Graph output directory
+gitlab-sim-out/
+
 # Go test & coverage artifacts
 *.test
 *.out

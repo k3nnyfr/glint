@@ -1,5 +1,9 @@
 # gitlab-sim
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+> **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
+
 A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a GitLab server.
 
 ## Features
@@ -8,7 +12,12 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Stage validation** — every job's `stage` must be declared in `stages`
 - **`extends:` resolution** — resolves single and multi-level template inheritance before linting, so derived jobs are evaluated against their fully merged definition
 - **`needs:` DAG validation** — checks that `needs:` references exist, respect stage ordering, and contain no circular dependencies
+- **`dependencies:` validation** — checks that artifact dependency references exist and are in earlier stages
+- **Keyword validation** — validates constraints on `when`, `parallel`, `retry`, `allow_failure`, `trigger`, `artifacts`, `cache`, `release`, `environment`, `coverage`, `rules`, and more
+- **Remote project includes** — fetches `include: project:` templates from the GitLab API so extends/needs can be validated against the full merged pipeline
+- **CI/CD catalog components** — resolves `include: component:` references from the GitLab CI/CD Catalog; public components work without a token
 - **Deprecation warnings** — flags `only`/`except` usage in favour of `rules`
+- **Graph output** — emits Mermaid diagrams for the include dependency tree and the pipeline jobs layout (DAG or classic stage ordering)
 
 ## Requirements
 
@@ -32,10 +41,107 @@ task build
 ## Usage
 
 ```bash
-gitlab-sim <pipeline.yml>
+gitlab-sim [options] <pipeline.yml>
 ```
 
 Exits `0` when no errors are found, `1` when at least one error is reported.
+
+### Remote project includes
+
+Pipelines that include templates from other GitLab projects are supported.
+Provide a token so `gitlab-sim` can fetch them:
+
+```bash
+# personal access token (read_api scope)
+GITLAB_TOKEN=glpat-xxxx gitlab-sim .gitlab-ci.yml
+
+# CI/CD job token (when running inside a pipeline)
+CI_JOB_TOKEN=$CI_JOB_TOKEN gitlab-sim .gitlab-ci.yml
+
+# self-hosted GitLab
+GITLAB_TOKEN=glpat-xxxx GITLAB_URL=https://gitlab.example.com gitlab-sim .gitlab-ci.yml
+
+# or via flags
+gitlab-sim --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
+```
+
+**Project includes** require a token; without one they are skipped with a
+warning and the rest of the pipeline is linted as-is.
+
+**Component includes** (`include: component: ...`) attempt the fetch
+unauthenticated, so public [CI/CD Catalog](https://gitlab.com/explore/catalog)
+components work without a token. A warning is emitted if the fetch fails.
+
+Token resolution order (first non-empty wins):
+
+| Source | Header used |
+|--------|-------------|
+| `--token` flag / `GITLAB_TOKEN` | `PRIVATE-TOKEN` |
+| `CI_JOB_TOKEN` | `JOB-TOKEN` |
+| `GITLAB_PRIVATE_TOKEN` | `PRIVATE-TOKEN` |
+
+Instance URL resolution order: `--gitlab-url` flag → `CI_SERVER_URL` →
+`GITLAB_URL` → `https://gitlab.com`
+
+### Component reference format
+
+```
+<host>/<project-path>/<component-name>@<version>
+
+gitlab.com/components/secret-detection/secret-detection@v0.1.0
+gitlab.com/my-org/ci-catalog/lint@main
+gitlab.example.com/platform/components/build@~latest
+```
+
+The component file is looked up in order:
+1. `templates/<component-name>.yml` (single-file layout)
+2. `templates/<component-name>/template.yml` (directory layout)
+
+Component input parameters (`with:`) are not validated — they are resolved by
+GitLab at runtime. Jobs in fetched components may use `$[[ inputs.xxx ]]`
+placeholders in fields like `stage`; `gitlab-sim` skips those fields rather
+than producing false positive errors.
+
+### Graph output
+
+Pass `--graph` to visualise the pipeline instead of running lint rules.
+
+```bash
+# Include dependency graph (which files include which) → Mermaid to stdout
+gitlab-sim --graph includes .gitlab-ci.yml > includes.mmd
+
+# GitLab-like pipeline layout → PNG (or SVG fallback) written to --graph-out dir
+gitlab-sim --graph pipeline .gitlab-ci.yml
+# prints the output file path, e.g.: gitlab-sim-out/pipeline-20260607-143022.png
+
+# Both at once: Mermaid to stdout + pipeline file path to stderr
+gitlab-sim --graph all .gitlab-ci.yml > includes.mmd
+
+# Custom output directory
+gitlab-sim --graph pipeline --graph-out /tmp/graphs .gitlab-ci.yml
+```
+
+**Include graph** (`--graph includes`) — [Mermaid](https://mermaid.js.org) flowchart written to stdout.
+Pipe to a `.mmd` file or paste into [mermaid.live](https://mermaid.live).
+One node per include entry, colour-coded by type:
+- Orange (bold): the main pipeline file
+- Purple: `project:` includes
+- Green: `component:` includes
+- Blue: `local:` includes
+- Grey: `remote:` URL includes
+- Light orange: GitLab-provided `template:` includes
+
+**Pipeline graph** (`--graph pipeline`) — GitLab CI-style SVG rendered to a timestamped file
+in the `--graph-out` directory (default: `gitlab-sim-out/`). Converted to PNG automatically
+when `rsvg-convert`, `inkscape`, or `magick` is available; falls back to SVG otherwise.
+Jobs are colour-coded by type:
+- Blue (`#1f75cb`): regular jobs
+- Orange (`#fc6d26`): `when: manual` jobs
+- Purple (`#6b4fbb`): `trigger:` jobs
+- Amber (`#fca326`): `when: delayed` jobs
+
+DAG mode (job-to-job Bézier arrows) activates automatically when any job has a `needs:` list.
+Classic mode draws L-shaped or straight connectors between stage columns otherwise.
 
 ### Example output
 
@@ -135,9 +241,11 @@ task clean        # remove build artifacts
 .
 ├── cmd/gitlab-sim/     # CLI entrypoint
 ├── internal/
+│   ├── fetcher/        # GitLab API client (project include fetching)
+│   ├── graph/          # Mermaid and SVG/PNG graph generators
 │   ├── linter/         # lint rules and findings
 │   ├── model/          # pipeline data structures and YAML parser
-│   └── resolver/       # extends: resolution
+│   └── resolver/       # extends: resolution and project include merging
 ├── testdata/           # sample pipelines used for manual validation
 ├── Taskfile.yml
 └── go.mod

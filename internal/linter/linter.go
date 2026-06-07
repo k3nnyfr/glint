@@ -97,8 +97,10 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 		})
 	}
 
-	// stage must exist in declared stages (if stages were declared)
-	if job.Stage != "" && len(stageSet) > 0 && !stageSet[job.Stage] {
+	// stage must exist in declared stages (if stages were declared).
+	// Skip when the stage value is a component input placeholder ($[[ inputs.xxx ]]):
+	// those are resolved server-side and cannot be validated locally.
+	if job.Stage != "" && !strings.Contains(job.Stage, "$[[") && len(stageSet) > 0 && !stageSet[job.Stage] {
 		findings = append(findings, Finding{
 			Severity: Error,
 			Job:      name,
