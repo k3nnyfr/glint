@@ -45,6 +45,16 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} testdata/includes_component.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} testdata/context_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} --branch main testdata/context_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} --branch develop testdata/context_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} --branch feat/my-feature testdata/context_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} --tag v1.0.0 testdata/context_rules.yml
+        ignore_error: false
 
   lint-go:
     desc: Run go vet on all packages

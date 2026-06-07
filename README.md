@@ -1,6 +1,7 @@
 # gitlab-sim
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](CHANGELOG.md)
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
 
@@ -18,6 +19,7 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **CI/CD catalog components** — resolves `include: component:` references from the GitLab CI/CD Catalog; public components work without a token
 - **Deprecation warnings** — flags `only`/`except` usage in favour of `rules`
 - **Graph output** — emits Mermaid diagrams for the include dependency tree and the pipeline jobs layout (DAG or classic stage ordering)
+- **Context simulation** — pass `--branch`, `--tag`, or `--source` to see which jobs would be active, manual, or skipped for a specific branch push, tag, or pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
 
 ## Requirements
 
@@ -143,10 +145,61 @@ Jobs are colour-coded by type:
 DAG mode (job-to-job Bézier arrows) activates automatically when any job has a `needs:` list.
 Classic mode draws L-shaped or straight connectors between stage columns otherwise.
 
+### Context simulation
+
+Pass `--branch`, `--tag`, or `--source` to see which jobs would run for a given
+pipeline event. The pipeline is still fully linted; context output is printed first.
+
+```bash
+# What runs on a push to develop?
+gitlab-sim --branch develop .gitlab-ci.yml
+
+# What runs when a v1.2.0 tag is pushed?
+gitlab-sim --tag v1.2.0 .gitlab-ci.yml
+
+# Merge request pipeline
+gitlab-sim --source merge_request_event .gitlab-ci.yml
+
+# Arbitrary variable overrides (repeatable)
+gitlab-sim --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
+```
+
+**Evaluated:**
+- `rules:if:` — full expression language: `==`, `!=`, `=~`, `!~`, `&&`, `||`, `!`, `()`, `$VAR`, string literals, `null`
+- `only:` / `except:` — ref keywords (`branches`, `tags`, `merge_requests`, `schedules`, …), branch name globs (`feat/*`), and `/regex/` patterns
+
+**Not evaluated** (no git tree at lint time): `rules:changes:`, `rules:exists:`.
+Rules without an `if:` clause always match.
+
+**Predefined variables** set automatically by the shortcut flags:
+
+| Flag | Variables populated |
+|------|---------------------|
+| `--branch <name>` | `CI_COMMIT_BRANCH`, `CI_COMMIT_REF_NAME`, `CI_COMMIT_REF_SLUG`, `CI_PIPELINE_SOURCE=push` |
+| `--tag <name>` | `CI_COMMIT_TAG`, `CI_COMMIT_REF_NAME`, `CI_COMMIT_REF_SLUG`, `CI_PIPELINE_SOURCE=push` (clears `CI_COMMIT_BRANCH`) |
+| `--source <event>` | `CI_PIPELINE_SOURCE` |
+| `--var KEY=VALUE` | any variable; overrides shortcuts |
+
 ### Example output
 
 ```
-# Clean pipeline
+# Clean pipeline, no context
+OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
+
+# With --branch develop context
+Context: branch=develop, source=push
+
+Active  (3): build, deploy-staging, test
+Skipped (2): deploy-prod, release-notes
+
+OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
+
+# With --tag v1.0.0 context
+Context: tag=v1.0.0, source=push
+
+Active  (4): build, deploy-prod, release-notes, test
+Skipped (1): deploy-staging
+
 OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
 
 # Pipeline with issues
@@ -241,6 +294,7 @@ task clean        # remove build artifacts
 .
 ├── cmd/gitlab-sim/     # CLI entrypoint
 ├── internal/
+│   ├── cicontext/      # CI variable context, rules:if: evaluator, job reachability
 │   ├── fetcher/        # GitLab API client (project include fetching)
 │   ├── graph/          # Mermaid and SVG/PNG graph generators
 │   ├── linter/         # lint rules and findings

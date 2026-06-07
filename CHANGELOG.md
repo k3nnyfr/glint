@@ -3,11 +3,24 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project does not yet use semantic versioning; entries are listed under `[Unreleased]` until a first release is tagged.
+This project uses [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.1.0] - 2026-06-07
 
 ### Added
+
+- **Context simulation (`--branch` / `--tag` / `--source` / `--var`)** — show which jobs would be active, manual, or skipped for a specific pipeline event without leaving the terminal:
+  - `--branch <name>` — simulates a branch push; populates `CI_COMMIT_BRANCH`, `CI_COMMIT_REF_NAME`, `CI_COMMIT_REF_SLUG`, and defaults `CI_PIPELINE_SOURCE` to `push`
+  - `--tag <name>` — simulates a tag push; populates `CI_COMMIT_TAG`, clears `CI_COMMIT_BRANCH`
+  - `--source <event>` — sets `CI_PIPELINE_SOURCE` explicitly (`merge_request_event`, `schedule`, `web`, `api`, `pipeline`, …)
+  - `--var KEY=VALUE` — sets any CI variable; repeatable; overrides shortcut values
+  - Evaluates `rules:if:` expressions (`==`, `!=`, `=~`, `!~`, `&&`, `||`, `!`, parentheses, `$VAR`, string literals, `null`)
+  - Evaluates `only:`/`except:` ref keywords (`branches`, `tags`, `merge_requests`, `schedules`, `pushes`, `web`, `api`, `pipelines`), branch name globs (`feat/*`), and `/regex/` patterns
+  - Evaluates `workflow:rules:` — warns when the pipeline itself would not start for the given context
+  - `rules:changes:` and `rules:exists:` are not evaluated (no git tree at lint time); rules without `if:` always match
+  - Linting runs in full regardless of context; context output is printed before findings
+  - New `internal/cicontext` package (`context.go`, `eval.go`, `reachability.go`); no new external dependencies
+  - 33 unit tests covering the expression evaluator; 5 fixture runs in `task validate`
 
 - **Graph output (`--graph`)** — visualises the pipeline instead of running lint rules:
   - `--graph includes` — [Mermaid](https://mermaid.js.org) flowchart of include dependencies written to stdout; one node per `include:` entry (project, component, local, remote, template), colour-coded by type; pipe to a `.mmd` file or paste into [mermaid.live](https://mermaid.live)
