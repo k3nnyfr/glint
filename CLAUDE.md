@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`gitlab-sim` is a CLI tool that validates and lints `.gitlab-ci.yml` pipelines locally, without a GitLab server. It resolves `extends:` inheritance, fetches remote `include: project:` templates and `include: component:` catalog entries, then runs a set of lint rules over the fully-merged pipeline.
+`glint` is a CLI tool that validates and lints `.gitlab-ci.yml` pipelines locally, without a GitLab server. It resolves `extends:` inheritance, fetches remote `include: project:` templates and `include: component:` catalog entries, then runs a set of lint rules over the fully-merged pipeline.
 
 **Goals:** catch misconfigured pipelines early in a developer's workflow, before pushing to GitLab. Eventual goal: produce a visual graph of the pipeline DAG.
 
@@ -34,7 +34,7 @@ This order is intentional and must be preserved: includes must be merged before 
 | `internal/resolver` | `extends:` resolution and `include:` merging |
 | `internal/fetcher` | GitLab REST API client (token auth, file fetch) |
 | `internal/graph` | Mermaid graph generators (include dependencies, pipeline jobs) |
-| `cmd/gitlab-sim` | CLI entrypoint, flag parsing, output formatting |
+| `cmd/glint` | CLI entrypoint, flag parsing, output formatting |
 
 ### Two-pass YAML parser (`internal/model/parser.go`)
 
@@ -138,7 +138,7 @@ All commit messages must follow this format:
 - `resolver`: extends/include resolution (`internal/resolver/`)
 - `fetcher`: GitLab API client (`internal/fetcher/`)
 - `graph`: Mermaid graph generators (`internal/graph/`)
-- `cli`: CLI entrypoint (`cmd/gitlab-sim/`)
+- `cli`: CLI entrypoint (`cmd/glint/`)
 - `testdata`: fixture files only
 - `docs`: README, CHANGELOG, or other documentation
 - `build`: Taskfile, go.mod, go.sum, CI config
@@ -185,3 +185,9 @@ Every fixture in `testdata/` is run by `task validate`. Files whose expected beh
 
 Token resolution order (first non-empty wins): `GITLAB_TOKEN` → `CI_JOB_TOKEN` → `GITLAB_PRIVATE_TOKEN`.
 URL resolution order: `--gitlab-url` flag → `CI_SERVER_URL` → `GITLAB_URL` → `https://gitlab.com`.
+
+---
+
+## README and CHANGELOG
+
+On each modification, complete README.md and CHANGELOG.md with the changes made.

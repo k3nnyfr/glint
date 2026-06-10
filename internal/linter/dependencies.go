@@ -3,7 +3,7 @@ package linter
 import (
 	"fmt"
 
-	"git.k3nny.fr/gitlab-sim/internal/model"
+	"git.k3nny.fr/glint/internal/model"
 )
 
 func checkDependencies(p *model.Pipeline) []Finding {

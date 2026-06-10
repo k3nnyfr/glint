@@ -1,12 +1,12 @@
 # Roadmap
 
-This document tracks planned improvements to `gitlab-sim`. Items are grouped by theme, roughly in priority order within each group. Nothing here is a commitment — the tool is experimental and the list will shift as real usage surfaces better priorities.
+This document tracks planned improvements to `glint`. Items are grouped by theme, roughly in priority order within each group. Nothing here is a commitment — the tool is experimental and the list will shift as real usage surfaces better priorities.
 
 ---
 
 ## Context-aware validation
 
-Pipelines in Git Flow, Trunk-Based Development, or any branching strategy are rarely uniform: jobs activate or skip based on `$CI_COMMIT_BRANCH`, `$CI_COMMIT_TAG`, `$CI_PIPELINE_SOURCE`, and similar runtime variables. Today `gitlab-sim` validates structure but cannot tell which jobs are actually reachable for a given context.
+Pipelines in Git Flow, Trunk-Based Development, or any branching strategy are rarely uniform: jobs activate or skip based on `$CI_COMMIT_BRANCH`, `$CI_COMMIT_TAG`, `$CI_PIPELINE_SOURCE`, and similar runtime variables. Today `glint` validates structure but cannot tell which jobs are actually reachable for a given context.
 
 The plan is to make the execution context injectable so the linter can evaluate `rules:if:` / `only` / `except` conditions and report per-context reachability.
 
@@ -14,23 +14,23 @@ The plan is to make the execution context injectable so the linter can evaluate 
 
 ```bash
 # Push to develop
-gitlab-sim --branch develop .gitlab-ci.yml
+glint --branch develop .gitlab-ci.yml
 
 # Tag push (v1.2.0) — sets CI_COMMIT_TAG and clears CI_COMMIT_BRANCH
-gitlab-sim --tag v1.2.0 .gitlab-ci.yml
+glint --tag v1.2.0 .gitlab-ci.yml
 
 # Merge request pipeline
-gitlab-sim --source merge_request_event \
+glint --source merge_request_event \
            --var CI_MERGE_REQUEST_TARGET_BRANCH_NAME=main \
            .gitlab-ci.yml
 
 # Explicit variable overrides for anything not covered by the shortcuts
-gitlab-sim --var CI_COMMIT_BRANCH=feat/my-feature \
+glint --var CI_COMMIT_BRANCH=feat/my-feature \
            --var CI_ENVIRONMENT_NAME=staging \
            .gitlab-ci.yml
 
 # Simulate multiple contexts in one run (print per-context job tables)
-gitlab-sim --context branch=main \
+glint --context branch=main \
            --context branch=develop \
            --context tag=v1.0.0 \
            .gitlab-ci.yml
@@ -112,22 +112,22 @@ The SVG renderer covers the basic layout. These would bring it closer to GitLab'
 
 ## CI / editor integration
 
-- **GitLab CI template** — a `.gitlab-ci.yml` snippet that runs `gitlab-sim` as a pipeline-validation job before the real pipeline executes; publishable to the GitLab CI/CD Catalog
-- **GitHub Actions action** — `uses: k3nny/gitlab-sim@v1` wrapper for repositories that mirror or manage GitLab pipelines from GitHub
-- **Pre-commit hook** — entry for [pre-commit](https://pre-commit.com) so `gitlab-sim` runs automatically on `git commit` when `.gitlab-ci.yml` changes
-- **LSP server** — `gitlab-sim lsp` mode exposing diagnostics over the Language Server Protocol; enables inline squiggles in VS Code, JetBrains, Neovim, etc. without a dedicated extension
+- **GitLab CI template** — a `.gitlab-ci.yml` snippet that runs `glint` as a pipeline-validation job before the real pipeline executes; publishable to the GitLab CI/CD Catalog
+- **GitHub Actions action** — `uses: k3nny/glint@v1` wrapper for repositories that mirror or manage GitLab pipelines from GitHub
+- **Pre-commit hook** — entry for [pre-commit](https://pre-commit.com) so `glint` runs automatically on `git commit` when `.gitlab-ci.yml` changes
+- **LSP server** — `glint lsp` mode exposing diagnostics over the Language Server Protocol; enables inline squiggles in VS Code, JetBrains, Neovim, etc. without a dedicated extension
 - **VS Code extension** — thin wrapper around the LSP server with syntax highlighting for `.gitlab-ci.yml`
 
 ---
 
 ## Configuration
 
-- **`.gitlab-sim.yml` config file** — project-level configuration for:
+- **`.glint.yml` config file** — project-level configuration for:
   - Rule suppression by rule ID (e.g. `ignore: [no-only, missing-stages]`)
   - Severity overrides (demote specific errors to warnings)
   - Custom `stages` allowlist for projects that use a non-standard default set
   - Token and URL defaults so flags are not needed in every invocation
-- **Inline suppression comments** — `# gitlab-sim: ignore next-line <rule-id>` in the pipeline YAML
+- **Inline suppression comments** — `# glint: ignore next-line <rule-id>` in the pipeline YAML
 
 ---
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"git.k3nny.fr/gitlab-sim/internal/fetcher"
-	"git.k3nny.fr/gitlab-sim/internal/model"
+	"git.k3nny.fr/glint/internal/fetcher"
+	"git.k3nny.fr/glint/internal/model"
 )
 
 // IncludeWarning describes a remote include entry that could not be resolved.

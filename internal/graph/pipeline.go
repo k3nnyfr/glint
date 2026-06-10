@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"git.k3nny.fr/gitlab-sim/internal/model"
+	"git.k3nny.fr/glint/internal/model"
 )
 
 // Pipeline returns a Mermaid flowchart of pipeline jobs grouped by stage.

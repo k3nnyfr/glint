@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **Cross-platform release builds** — two new Taskfile tasks for producing tagged release binaries:
+  - `task build-windows` — cross-compiles for Windows x64; output: `glint-<tag>.exe`
+  - `task build-linux` — cross-compiles for Linux x64; output: `glint-<tag>-linux-amd64`
+  - Both tasks enforce that the current commit carries an exact git tag (`git describe --tags --exact-match`); they abort with a clear error otherwise
+
 ## [0.1.0] - 2026-06-07
 
 ### Added
@@ -24,7 +33,7 @@ This project uses [Semantic Versioning](https://semver.org).
 
 - **Graph output (`--graph`)** — visualises the pipeline instead of running lint rules:
   - `--graph includes` — [Mermaid](https://mermaid.js.org) flowchart of include dependencies written to stdout; one node per `include:` entry (project, component, local, remote, template), colour-coded by type; pipe to a `.mmd` file or paste into [mermaid.live](https://mermaid.live)
-  - `--graph pipeline` — GitLab CI-style SVG/PNG pipeline graph written to a timestamped file in `--graph-out` (default: `gitlab-sim-out/`); jobs rendered as white chip cards with a coloured status indicator (blue: regular, orange: manual, purple: trigger, amber: delayed); DAG mode draws job-to-job Bézier arrows when any job has `needs:`, classic mode draws L-shaped connectors between stage columns; converted to PNG automatically when `rsvg-convert`, `inkscape`, or `magick` is available
+  - `--graph pipeline` — GitLab CI-style SVG/PNG pipeline graph written to a timestamped file in `--graph-out` (default: `glint-out/`); jobs rendered as white chip cards with a coloured status indicator (blue: regular, orange: manual, purple: trigger, amber: delayed); DAG mode draws job-to-job Bézier arrows when any job has `needs:`, classic mode draws L-shaped connectors between stage columns; converted to PNG automatically when `rsvg-convert`, `inkscape`, or `magick` is available
   - `--graph all` — include Mermaid to stdout, pipeline file path to stderr
   - New `internal/graph` package (`includes.go`, `pipeline.go`, `render.go`); no new external dependencies
 
@@ -74,7 +83,7 @@ This project uses [Semantic Versioning](https://semver.org).
   - `only`/`rules` or `except`/`rules` used together (error)
   - No `stages` block defined (warning)
   - Deprecated `only`/`except` usage (warning)
-- **CLI** — `gitlab-sim <file>` exits 0 on clean pipelines, 1 on errors; prints findings with severity, job name, and message
+- **CLI** — `glint <file>` exits 0 on clean pipelines, 1 on errors; prints findings with severity, job name, and message
 - **YAML parser** — two-pass parse: reserved top-level keys (`stages`, `variables`, `default`, `include`, `workflow`) are decoded into typed structs; remaining keys are treated as job definitions
 - **Taskfile** — `build`, `test`, `lint-go`, `validate`, `ci`, `clean` tasks via [Task](https://taskfile.dev)
 - **Testdata fixtures** — `valid.yml`, `invalid.yml`, `extends.yml`, `needs.yml`, `needs_cycle.yml`

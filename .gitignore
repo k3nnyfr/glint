@@ -1,11 +1,11 @@
 # Compiled binaries
-gitlab-sim
-gitlab-sim.exe
+glint
+glint.exe
 dist/
 bin/
 
 # Graph output directory
-gitlab-sim-out/
+glint-out/
 
 # Go test & coverage artifacts
 *.test

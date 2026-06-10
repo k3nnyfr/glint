@@ -1,4 +1,4 @@
-module git.k3nny.fr/gitlab-sim
+module git.k3nny.fr/glint
 
 go 1.26.4
 

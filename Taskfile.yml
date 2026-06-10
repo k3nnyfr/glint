@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  BINARY: gitlab-sim
+  BINARY: glint
   GO: /usr/local/go/bin/go
 
 tasks:
@@ -10,9 +10,9 @@ tasks:
     cmd: task --list
 
   build:
-    desc: Build the gitlab-sim binary
+    desc: Build the glint binary
     cmds:
-      - "{{.GO}} build -o {{.BINARY}} ./cmd/gitlab-sim/..."
+      - "{{.GO}} build -o {{.BINARY}} ./cmd/glint/..."
     sources:
       - "**/*.go"
       - go.mod
@@ -24,7 +24,7 @@ tasks:
     cmd: "{{.GO}} test ./..."
 
   validate:
-    desc: Run gitlab-sim against all testdata fixtures
+    desc: Run glint against all testdata fixtures
     deps: [build]
     cmds:
       - cmd: ./{{.BINARY}} testdata/valid.yml
@@ -68,6 +68,38 @@ tasks:
       - task: build
       - task: validate
 
+  build-windows:
+    desc: Build the glint binary for Windows x64 (requires a tagged commit)
+    vars:
+      TAG:
+        sh: git describe --tags --exact-match
+    preconditions:
+      - sh: git describe --tags --exact-match
+        msg: "Current commit is not tagged — Windows build requires a git tag"
+    cmds:
+      - "GOOS=windows GOARCH=amd64 {{.GO}} build -o {{.BINARY}}-{{.TAG}}.exe ./cmd/glint/..."
+    sources:
+      - "**/*.go"
+      - go.mod
+    generates:
+      - "{{.BINARY}}-{{.TAG}}.exe"
+
+  build-linux:
+    desc: Build the glint binary for Linux x64 (requires a tagged commit)
+    vars:
+      TAG:
+        sh: git describe --tags --exact-match
+    preconditions:
+      - sh: git describe --tags --exact-match
+        msg: "Current commit is not tagged — Linux build requires a git tag"
+    cmds:
+      - "GOOS=linux GOARCH=amd64 {{.GO}} build -o {{.BINARY}}-{{.TAG}}-linux-amd64 ./cmd/glint/..."
+    sources:
+      - "**/*.go"
+      - go.mod
+    generates:
+      - "{{.BINARY}}-{{.TAG}}-linux-amd64"
+
   clean:
     desc: Remove build artifacts
-    cmd: rm -f {{.BINARY}}
+    cmd: rm -f {{.BINARY}} {{.BINARY}}-*.exe {{.BINARY}}-*-linux-amd64

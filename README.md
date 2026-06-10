@@ -1,4 +1,4 @@
-# gitlab-sim
+# glint
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](CHANGELOG.md)
@@ -29,9 +29,9 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 ## Installation
 
 ```bash
-git clone https://git.k3nny.fr/gitlab-sim
-cd gitlab-sim
-go build -o gitlab-sim ./cmd/gitlab-sim/...
+git clone https://git.k3nny.fr/glint
+cd glint
+go build -o glint ./cmd/glint/...
 ```
 
 Or with Task:
@@ -43,7 +43,7 @@ task build
 ## Usage
 
 ```bash
-gitlab-sim [options] <pipeline.yml>
+glint [options] <pipeline.yml>
 ```
 
 Exits `0` when no errors are found, `1` when at least one error is reported.
@@ -51,20 +51,20 @@ Exits `0` when no errors are found, `1` when at least one error is reported.
 ### Remote project includes
 
 Pipelines that include templates from other GitLab projects are supported.
-Provide a token so `gitlab-sim` can fetch them:
+Provide a token so `glint` can fetch them:
 
 ```bash
 # personal access token (read_api scope)
-GITLAB_TOKEN=glpat-xxxx gitlab-sim .gitlab-ci.yml
+GITLAB_TOKEN=glpat-xxxx glint .gitlab-ci.yml
 
 # CI/CD job token (when running inside a pipeline)
-CI_JOB_TOKEN=$CI_JOB_TOKEN gitlab-sim .gitlab-ci.yml
+CI_JOB_TOKEN=$CI_JOB_TOKEN glint .gitlab-ci.yml
 
 # self-hosted GitLab
-GITLAB_TOKEN=glpat-xxxx GITLAB_URL=https://gitlab.example.com gitlab-sim .gitlab-ci.yml
+GITLAB_TOKEN=glpat-xxxx GITLAB_URL=https://gitlab.example.com glint .gitlab-ci.yml
 
 # or via flags
-gitlab-sim --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
+glint --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
 ```
 
 **Project includes** require a token; without one they are skipped with a
@@ -101,7 +101,7 @@ The component file is looked up in order:
 
 Component input parameters (`with:`) are not validated — they are resolved by
 GitLab at runtime. Jobs in fetched components may use `$[[ inputs.xxx ]]`
-placeholders in fields like `stage`; `gitlab-sim` skips those fields rather
+placeholders in fields like `stage`; `glint` skips those fields rather
 than producing false positive errors.
 
 ### Graph output
@@ -110,17 +110,17 @@ Pass `--graph` to visualise the pipeline instead of running lint rules.
 
 ```bash
 # Include dependency graph (which files include which) → Mermaid to stdout
-gitlab-sim --graph includes .gitlab-ci.yml > includes.mmd
+glint --graph includes .gitlab-ci.yml > includes.mmd
 
 # GitLab-like pipeline layout → PNG (or SVG fallback) written to --graph-out dir
-gitlab-sim --graph pipeline .gitlab-ci.yml
-# prints the output file path, e.g.: gitlab-sim-out/pipeline-20260607-143022.png
+glint --graph pipeline .gitlab-ci.yml
+# prints the output file path, e.g.: glint-out/pipeline-20260607-143022.png
 
 # Both at once: Mermaid to stdout + pipeline file path to stderr
-gitlab-sim --graph all .gitlab-ci.yml > includes.mmd
+glint --graph all .gitlab-ci.yml > includes.mmd
 
 # Custom output directory
-gitlab-sim --graph pipeline --graph-out /tmp/graphs .gitlab-ci.yml
+glint --graph pipeline --graph-out /tmp/graphs .gitlab-ci.yml
 ```
 
 **Include graph** (`--graph includes`) — [Mermaid](https://mermaid.js.org) flowchart written to stdout.
@@ -134,7 +134,7 @@ One node per include entry, colour-coded by type:
 - Light orange: GitLab-provided `template:` includes
 
 **Pipeline graph** (`--graph pipeline`) — GitLab CI-style SVG rendered to a timestamped file
-in the `--graph-out` directory (default: `gitlab-sim-out/`). Converted to PNG automatically
+in the `--graph-out` directory (default: `glint-out/`). Converted to PNG automatically
 when `rsvg-convert`, `inkscape`, or `magick` is available; falls back to SVG otherwise.
 Jobs are colour-coded by type:
 - Blue (`#1f75cb`): regular jobs
@@ -152,16 +152,16 @@ pipeline event. The pipeline is still fully linted; context output is printed fi
 
 ```bash
 # What runs on a push to develop?
-gitlab-sim --branch develop .gitlab-ci.yml
+glint --branch develop .gitlab-ci.yml
 
 # What runs when a v1.2.0 tag is pushed?
-gitlab-sim --tag v1.2.0 .gitlab-ci.yml
+glint --tag v1.2.0 .gitlab-ci.yml
 
 # Merge request pipeline
-gitlab-sim --source merge_request_event .gitlab-ci.yml
+glint --source merge_request_event .gitlab-ci.yml
 
 # Arbitrary variable overrides (repeatable)
-gitlab-sim --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
+glint --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
 ```
 
 **Evaluated:**
@@ -285,6 +285,8 @@ task test         # run Go unit tests
 task lint-go      # run go vet
 task validate     # run the binary against all testdata fixtures
 task ci           # full check: vet → test → build → validate
+task build-windows  # cross-compile for Windows x64 (requires a tagged commit → glint-<tag>.exe)
+task build-linux    # cross-compile for Linux x64 (requires a tagged commit → glint-<tag>-linux-amd64)
 task clean        # remove build artifacts
 ```
 
@@ -292,7 +294,7 @@ task clean        # remove build artifacts
 
 ```
 .
-├── cmd/gitlab-sim/     # CLI entrypoint
+├── cmd/glint/     # CLI entrypoint
 ├── internal/
 │   ├── cicontext/      # CI variable context, rules:if: evaluator, job reachability
 │   ├── fetcher/        # GitLab API client (project include fetching)

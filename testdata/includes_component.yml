@@ -3,7 +3,7 @@ stages:
   - deploy
 
 # CI/CD catalog components. Without network access or a token the fetches will
-# fail and gitlab-sim emits a WARNING for each, then lints the local jobs normally.
+# fail and glint emits a WARNING for each, then lints the local jobs normally.
 include:
   # Standard single-segment component path (file layout: templates/sast.yml)
   - component: gitlab.com/components/sast/sast@latest

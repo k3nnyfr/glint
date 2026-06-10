@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"git.k3nny.fr/gitlab-sim/internal/model"
+	"git.k3nny.fr/glint/internal/model"
 )
 
 // JobState describes whether a job would be included in a pipeline run for the

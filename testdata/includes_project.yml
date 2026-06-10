@@ -3,7 +3,7 @@ stages:
   - test
 
 # This pipeline includes templates from another GitLab project.
-# Without a token, gitlab-sim warns but still lints the local jobs.
+# Without a token, glint warns but still lints the local jobs.
 include:
   - project: my-group/ci-templates
     ref: main
