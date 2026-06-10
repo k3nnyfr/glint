@@ -16,7 +16,15 @@ jobs:
       - name: Install tools
         run: apk add --no-cache curl git jq
 
-      - uses: actions/checkout@v4
+      - name: Checkout
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: |
+          git clone --depth 1 --branch "$REF" \
+            "$(echo "$SERVER_URL" | sed "s|https://|https://oauth2:${TOKEN}@|")/${REPO}.git" .
 
       - name: Build Linux (amd64)
         env:
