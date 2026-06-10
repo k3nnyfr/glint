@@ -2,12 +2,183 @@ package graph
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"git.k3nny.fr/glint/internal/fetcher"
+	"git.k3nny.fr/glint/internal/model"
 )
 
-// Includes returns a Mermaid flowchart showing include file dependencies.
-// sourcePath is the path to the main pipeline file; rawIncludes is Pipeline.Include.
-func Includes(sourcePath string, rawIncludes []any) string {
+// Includes returns a Mermaid flowchart of the full include dependency tree.
+// It recurses into project:, component:, and local: includes to expose
+// transitive dependencies. Includes that cannot be fetched are shown but not expanded.
+func Includes(sourcePath string, rawIncludes []any, cfg fetcher.GitLabConfig) string {
+	b := &treeBuilder{
+		visited: map[string]bool{},
+		cfg:     cfg,
+		baseDir: filepath.Dir(sourcePath),
+	}
+	root := &treeNode{id: "root", label: mermaidLabel(sourcePath), class: "main"}
+	b.buildChildren(root, rawIncludes)
+	return renderTree(root)
+}
+
+type treeNode struct {
+	id       string
+	label    string
+	class    string
+	children []*treeNode
+}
+
+// treeBuilder accumulates state while recursively traversing include entries.
+type treeBuilder struct {
+	counter int
+	visited map[string]bool // prevents infinite loops on circular includes
+	cfg     fetcher.GitLabConfig
+	baseDir string // directory of the current pipeline file; changes for local includes
+}
+
+func (b *treeBuilder) nextID() string {
+	b.counter++
+	return fmt.Sprintf("inc%d", b.counter)
+}
+
+func (b *treeBuilder) buildChildren(parent *treeNode, rawIncludes []any) {
+	for _, entry := range rawIncludes {
+		for _, child := range b.parseEntry(entry) {
+			parent.children = append(parent.children, child)
+		}
+	}
+}
+
+func (b *treeBuilder) parseEntry(entry any) []*treeNode {
+	switch v := entry.(type) {
+	case string:
+		node := &treeNode{id: b.nextID(), label: "local: " + mermaidLabel(v), class: "local"}
+		b.recurseLocal(node, v)
+		return []*treeNode{node}
+	case map[string]any:
+		return b.parseMap(v)
+	}
+	return nil
+}
+
+func (b *treeBuilder) parseMap(m map[string]any) []*treeNode {
+	if comp, ok := m["component"].(string); ok {
+		node := &treeNode{
+			id:    b.nextID(),
+			label: "component:<br>" + mermaidLabel(comp),
+			class: "component",
+		}
+		b.recurseComponent(node, comp)
+		return []*treeNode{node}
+	}
+	if proj, ok := m["project"].(string); ok {
+		ref, _ := m["ref"].(string)
+		if ref == "" {
+			ref = "HEAD"
+		}
+		files := includeFileList(m["file"])
+		if len(files) == 0 {
+			return []*treeNode{{
+				id:    b.nextID(),
+				label: fmt.Sprintf("project: %s @ %s", mermaidLabel(proj), ref),
+				class: "project",
+			}}
+		}
+		var nodes []*treeNode
+		for _, f := range files {
+			node := &treeNode{
+				id:    b.nextID(),
+				label: fmt.Sprintf("project: %s<br>%s @ %s", mermaidLabel(proj), mermaidLabel(f), ref),
+				class: "project",
+			}
+			b.recurseProject(node, proj, f, ref)
+			nodes = append(nodes, node)
+		}
+		return nodes
+	}
+	if local, ok := m["local"].(string); ok {
+		node := &treeNode{id: b.nextID(), label: "local: " + mermaidLabel(local), class: "local"}
+		b.recurseLocal(node, local)
+		return []*treeNode{node}
+	}
+	if remote, ok := m["remote"].(string); ok {
+		return []*treeNode{{id: b.nextID(), label: "remote:<br>" + mermaidLabel(remote), class: "remote"}}
+	}
+	if tmpl, ok := m["template"].(string); ok {
+		return []*treeNode{{id: b.nextID(), label: "template:<br>" + mermaidLabel(tmpl), class: "template"}}
+	}
+	return nil
+}
+
+func (b *treeBuilder) recurseLocal(node *treeNode, path string) {
+	absPath := filepath.Join(b.baseDir, path)
+	key := "local:" + absPath
+	if b.visited[key] {
+		return
+	}
+	b.visited[key] = true
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return
+	}
+	p, err := model.ParseBytes(data)
+	if err != nil || len(p.Include) == 0 {
+		return
+	}
+	orig := b.baseDir
+	b.baseDir = filepath.Dir(absPath)
+	b.buildChildren(node, p.Include)
+	b.baseDir = orig
+}
+
+func (b *treeBuilder) recurseProject(node *treeNode, project, filePath, ref string) {
+	key := fmt.Sprintf("project:%s:%s@%s", project, filePath, ref)
+	if b.visited[key] || !b.cfg.HasToken() || filePath == "" {
+		return
+	}
+	b.visited[key] = true
+
+	data, err := b.cfg.FetchFile(project, filePath, ref)
+	if err != nil {
+		return
+	}
+	p, err := model.ParseBytes(data)
+	if err != nil || len(p.Include) == 0 {
+		return
+	}
+	b.buildChildren(node, p.Include)
+}
+
+func (b *treeBuilder) recurseComponent(node *treeNode, ref string) {
+	if strings.ContainsRune(ref, '$') {
+		return
+	}
+	key := "component:" + ref
+	if b.visited[key] {
+		return
+	}
+	b.visited[key] = true
+
+	host, project, component, version, err := parseComponentRef(ref)
+	if err != nil {
+		return
+	}
+	data, err := fetchComponentFile(b.cfg.ForHost(host), project, component, version)
+	if err != nil {
+		return
+	}
+	p, err := model.ParseBytes(data)
+	if err != nil || len(p.Include) == 0 {
+		return
+	}
+	b.buildChildren(node, p.Include)
+}
+
+func renderTree(root *treeNode) string {
 	var sb strings.Builder
 	w := func(s string) { sb.WriteString(s + "\n") }
 	wf := func(f string, a ...any) { fmt.Fprintf(&sb, f+"\n", a...) }
@@ -23,84 +194,52 @@ func Includes(sourcePath string, rawIncludes []any) string {
 	w("    classDef remote fill:#868686,stroke:#686868,color:#fff")
 	w("    classDef template fill:#fc6d26,stroke:#e56b1f,color:#fff")
 	w("")
-	wf("    root[\"%s\"]:::main", mermaidLabel(sourcePath))
 
-	if len(rawIncludes) == 0 {
-		return sb.String()
-	}
-
-	w("")
-
-	counter := 0
-	for _, entry := range rawIncludes {
-		for _, n := range parseIncludeEntry(entry, &counter) {
-			wf("    %s[\"%s\"]:::%s", n.id, n.label, n.class)
-			wf("    root --> %s", n.id)
+	var emit func(n *treeNode)
+	emit = func(n *treeNode) {
+		wf("    %s[\"%s\"]:::%s", n.id, n.label, n.class)
+		for _, child := range n.children {
+			emit(child)
+			wf("    %s --> %s", n.id, child.id)
 		}
 	}
+	emit(root)
 
 	return sb.String()
 }
 
-type incNode struct {
-	id, label, class string
+// parseComponentRef parses a CI/CD component reference of the form
+// <host>/<project-path>/<component-name>@<version>.
+func parseComponentRef(ref string) (host, project, component, version string, err error) {
+	atIdx := strings.LastIndex(ref, "@")
+	if atIdx < 0 || atIdx == len(ref)-1 {
+		err = fmt.Errorf("component reference %q must include a version", ref)
+		return
+	}
+	version = ref[atIdx+1:]
+	path := ref[:atIdx]
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 {
+		err = fmt.Errorf("component reference %q must be <host>/<project>/<component>@<version>", ref)
+		return
+	}
+	host = parts[0]
+	component = parts[len(parts)-1]
+	project = strings.Join(parts[1:len(parts)-1], "/")
+	return
 }
 
-func parseIncludeEntry(entry any, counter *int) []incNode {
-	newID := func() string {
-		*counter++
-		return fmt.Sprintf("inc%d", *counter)
+// fetchComponentFile fetches a component's template YAML, trying the single-file
+// layout first and the directory layout as fallback.
+func fetchComponentFile(cfg fetcher.GitLabConfig, project, component, version string) ([]byte, error) {
+	if data, err := cfg.FetchFile(project, "templates/"+component+".yml", version); err == nil {
+		return data, nil
 	}
-	switch v := entry.(type) {
-	case string:
-		return []incNode{{id: newID(), label: mermaidLabel(v), class: "local"}}
-	case map[string]any:
-		return parseIncludeMap(v, newID)
+	data, err := cfg.FetchFile(project, "templates/"+component+"/template.yml", version)
+	if err != nil {
+		return nil, fmt.Errorf("component %s/%s@%s not found", project, component, version)
 	}
-	return nil
-}
-
-func parseIncludeMap(m map[string]any, newID func() string) []incNode {
-	if comp, ok := m["component"].(string); ok {
-		return []incNode{{
-			id:    newID(),
-			label: "component:<br>" + mermaidLabel(comp),
-			class: "component",
-		}}
-	}
-	if proj, ok := m["project"].(string); ok {
-		ref, _ := m["ref"].(string)
-		if ref == "" {
-			ref = "HEAD"
-		}
-		files := includeFileList(m["file"])
-		if len(files) == 0 {
-			return []incNode{{
-				id:    newID(),
-				label: fmt.Sprintf("project: %s @ %s", mermaidLabel(proj), ref),
-				class: "project",
-			}}
-		}
-		var nodes []incNode
-		for _, f := range files {
-			nodes = append(nodes, incNode{
-				id:    newID(),
-				label: fmt.Sprintf("project: %s<br>%s @ %s", mermaidLabel(proj), mermaidLabel(f), ref),
-				class: "project",
-			})
-		}
-		return nodes
-	}
-	if local, ok := m["local"].(string); ok {
-		return []incNode{{id: newID(), label: "local: " + mermaidLabel(local), class: "local"}}
-	}
-	if remote, ok := m["remote"].(string); ok {
-		return []incNode{{id: newID(), label: "remote:<br>" + mermaidLabel(remote), class: "remote"}}
-	}
-	if tmpl, ok := m["template"].(string); ok {
-		return []incNode{{id: newID(), label: "template:<br>" + mermaidLabel(tmpl), class: "template"}}
-	}
-	return nil
+	return data, nil
 }
 
 func includeFileList(v any) []string {

@@ -88,7 +88,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 
 	// After extends resolution, a job with no script/run is an error.
 	// Exceptions: trigger jobs, pages jobs (use pages: keyword), and template jobs.
-	hasScript := len(job.Script) > 0 || job.Run != nil
+	hasScript := scriptNonEmpty(job.Script) || job.Run != nil
 	if !isTemplate && !isTrigger && job.Pages == nil && !hasScript {
 		findings = append(findings, Finding{
 			Severity: Error,
@@ -138,4 +138,16 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	findings = append(findings, checkJobKeywords(name, job)...)
 
 	return findings
+}
+
+// scriptNonEmpty reports whether a script/before_script/after_script field
+// (which may be a []any list or a plain string) is non-empty.
+func scriptNonEmpty(v any) bool {
+	switch s := v.(type) {
+	case []any:
+		return len(s) > 0
+	case string:
+		return s != ""
+	}
+	return false
 }

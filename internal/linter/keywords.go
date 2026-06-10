@@ -264,7 +264,7 @@ func checkTrigger(name string, job model.Job) []Finding {
 		return nil
 	}
 	var findings []Finding
-	if len(job.Script) > 0 {
+	if scriptNonEmpty(job.Script) {
 		findings = append(findings, Finding{
 			Severity: Error,
 			Job:      name,

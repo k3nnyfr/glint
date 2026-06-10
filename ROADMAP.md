@@ -4,58 +4,26 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation
+## Context-aware validation — ✓ single-context shipped in v0.2.0
 
-Pipelines in Git Flow, Trunk-Based Development, or any branching strategy are rarely uniform: jobs activate or skip based on `$CI_COMMIT_BRANCH`, `$CI_COMMIT_TAG`, `$CI_PIPELINE_SOURCE`, and similar runtime variables. Today `glint` validates structure but cannot tell which jobs are actually reachable for a given context.
-
-The plan is to make the execution context injectable so the linter can evaluate `rules:if:` / `only` / `except` conditions and report per-context reachability.
-
-**CLI surface**
+Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
 
 ```bash
-# Push to develop
-glint --branch develop .gitlab-ci.yml
-
-# Tag push (v1.2.0) — sets CI_COMMIT_TAG and clears CI_COMMIT_BRANCH
-glint --tag v1.2.0 .gitlab-ci.yml
-
-# Merge request pipeline
-glint --source merge_request_event \
-           --var CI_MERGE_REQUEST_TARGET_BRANCH_NAME=main \
-           .gitlab-ci.yml
-
-# Explicit variable overrides for anything not covered by the shortcuts
-glint --var CI_COMMIT_BRANCH=feat/my-feature \
-           --var CI_ENVIRONMENT_NAME=staging \
-           .gitlab-ci.yml
-
-# Simulate multiple contexts in one run (print per-context job tables)
-glint --context branch=main \
-           --context branch=develop \
-           --context tag=v1.0.0 \
-           .gitlab-ci.yml
+# shipped: single-context simulation
+glint check --branch develop .gitlab-ci.yml
+glint check --tag v1.2.0 .gitlab-ci.yml
+glint check --source merge_request_event --var CI_MERGE_REQUEST_TARGET_BRANCH_NAME=main .gitlab-ci.yml
+glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] / [manual]
 ```
 
-**What context injection enables**
+**Remaining work**
 
-- Each job is resolved to **active** / **manual** / **skipped** for the given context
-- Warn when the entire pipeline would produce zero runnable jobs (common mistake when a `workflow:rules:` block is too restrictive)
-- Lint only the active job subset — skip `needs:` / `dependencies:` cross-checks for jobs that never co-execute in that context
-- `--context` multi-simulation: print a table showing which jobs activate per context, making it easy to audit Git Flow rules across branches and tags at once
-
-**Expression evaluator scope**
-
-GitLab's `rules:if:` expression language will be implemented incrementally:
-
-| Priority | Operators / features |
-|----------|----------------------|
-| 1 (MVP)  | `==`, `!=`, `null` check, `&&`, `\|\|`, `!`, parentheses |
-| 2        | Regex match `=~` / `!~` with `/pattern/` literals |
-| 3        | `$CI_COMMIT_BRANCH =~ /^feat\//`, anchored patterns |
-| 4        | `only: branches / tags / merge_requests` shorthand mapping |
-| 5        | `changes:` path glob evaluation against a real or mock file tree |
-
-Predefined variables populated automatically from `--branch` / `--tag` / `--source` shortcuts: `CI_COMMIT_BRANCH`, `CI_COMMIT_TAG`, `CI_COMMIT_REF_NAME`, `CI_COMMIT_REF_SLUG`, `CI_PIPELINE_SOURCE`, `CI_DEFAULT_BRANCH` (defaulting to `main`).
+- **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table:
+  ```bash
+  glint check --context branch=main --context branch=develop --context tag=v1.0.0 .gitlab-ci.yml
+  ```
+- **Context-scoped linting** — skip `needs:`/`dependencies:` cross-checks for jobs that are statically unreachable in the given context
+- **`rules:changes:` evaluation** — path glob evaluation against the local git tree (expression evaluator priority 5)
 
 ---
 
@@ -78,7 +46,7 @@ The current rule set covers the most common sources of broken pipelines. These a
 
 ## Include resolution
 
-- **`include: local:`** full resolution — parse and merge locally-referenced YAML files the same way remote project includes are handled; enables cross-file `extends:` and `needs:` validation for monorepo setups
+- ~~**`include: local:`** full resolution~~ — ✓ shipped in v0.2.0; local files are read from disk, recursively resolved, and merged before linting
 - **`include: remote:`** (URL) — fetch and merge plain HTTP/HTTPS URLs (no auth required)
 - **Recursive include depth limit** — guard against include cycles across files
 - **Offline mode / cache** — persist fetched remote templates to a local cache directory; `--offline` flag to skip network calls and use only cached copies
@@ -99,8 +67,9 @@ Right now the only output is plain-text findings. Structured output enables inte
 
 ## Pipeline graph improvements
 
-The SVG renderer covers the basic layout. These would bring it closer to GitLab's full interactive view.
+The SVG renderer and terminal tree cover the basic layout. These would bring it closer to GitLab's full interactive view.
 
+- ~~**Terminal job tree**~~ — ✓ shipped in v0.2.0 as `glint graph tree`; stages as branches, jobs as leaves, context-aware annotations
 - **Multi-job connector accuracy** — draw one connector per job pair rather than one per stage pair in classic mode, so pipelines with uneven columns look correct
 - **Job tooltip / detail panel** — embed a hidden `<title>` and `<desc>` per chip so SVG viewers show `stage`, `when`, `image`, and `needs` on hover
 - **`when: on_failure` visual distinction** — dashed border or distinct icon for failure-path jobs
@@ -136,5 +105,6 @@ The SVG renderer covers the basic layout. These would bring it closer to GitLab'
 - **Structured rule IDs** — assign a stable short ID to every rule (e.g. `GS001`) so suppression, documentation, and SARIF output are stable across versions
 - **`--explain <rule-id>`** — print the rule description, rationale, and an example fix
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
+- ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`
 - **Changelog automation** — generate release notes from Conventional Commits via `git-cliff` or similar
 - **Fuzz testing** — add a `go test -fuzz` target for the YAML parser to harden it against malformed input

@@ -27,33 +27,39 @@ tasks:
     desc: Run glint against all testdata fixtures
     deps: [build]
     cmds:
-      - cmd: ./{{.BINARY}} testdata/valid.yml
+      - cmd: ./{{.BINARY}} check testdata/valid.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} testdata/extends.yml
+      - cmd: ./{{.BINARY}} check testdata/extends.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} testdata/keywords_valid.yml
+      - cmd: ./{{.BINARY}} check testdata/keywords_valid.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} testdata/invalid.yml
+      - cmd: ./{{.BINARY}} check testdata/invalid.yml
         ignore_error: true
-      - cmd: ./{{.BINARY}} testdata/needs.yml
+      - cmd: ./{{.BINARY}} check testdata/needs.yml
         ignore_error: true
-      - cmd: ./{{.BINARY}} testdata/needs_cycle.yml
+      - cmd: ./{{.BINARY}} check testdata/needs_cycle.yml
         ignore_error: true
-      - cmd: ./{{.BINARY}} testdata/keywords_invalid.yml
+      - cmd: ./{{.BINARY}} check testdata/keywords_invalid.yml
         ignore_error: true
-      - cmd: ./{{.BINARY}} testdata/includes_project.yml
+      - cmd: ./{{.BINARY}} check testdata/includes_project.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} testdata/includes_component.yml
+      - cmd: ./{{.BINARY}} check testdata/includes_component.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} testdata/context_rules.yml
+      - cmd: ./{{.BINARY}} check testdata/context_rules.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} --branch main testdata/context_rules.yml
+      - cmd: ./{{.BINARY}} check --branch main testdata/context_rules.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} --branch develop testdata/context_rules.yml
+      - cmd: ./{{.BINARY}} check --branch develop testdata/context_rules.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} --branch feat/my-feature testdata/context_rules.yml
+      - cmd: ./{{.BINARY}} check --branch feat/my-feature testdata/context_rules.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} --tag v1.0.0 testdata/context_rules.yml
+      - cmd: ./{{.BINARY}} check --tag v1.0.0 testdata/context_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-coverage.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-private.yml
         ignore_error: false
 
   lint-go:

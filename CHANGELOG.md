@@ -7,12 +7,37 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-11
+
 ### Added
 
-- **Cross-platform release builds** — two new Taskfile tasks for producing tagged release binaries:
+- **Subcommand CLI** — reworked interface inspired by [ruff](https://docs.astral.sh/ruff/):
+  - `glint check <file>` — lint a pipeline (replaces bare `glint <file>`)
+  - `glint graph [mode] <file>` — visualise the pipeline (replaces `--graph` flag)
+  - Graph modes: no-arg (tree + includes), `tree`, `includes`, `pipeline`, `all`
+  - Per-command `--help` with ruff-style layout: `Arguments:`, `Options:` (flag declaration on its own line, description below), `[env: ...]` / `[default: ...]` / `[possible values: ...]` metadata, `Examples:` section
+
+- **`glint graph tree`** — jobs displayed as a terminal directory tree grouped by stage (like the `tree` command); job-type annotations (`[manual]`, `[delayed]`, `[trigger]`) when no context is set; evaluated-state annotations (`[skipped]`, `[manual]`) when a context is provided via `--branch` / `--tag` / `--source`
+
+- **Context flags on `glint graph`** — `--branch`, `--tag`, `--source`, `--var` are now available on `glint graph` as well as `glint check`
+
+- **Local include resolution** — `include: local:` entries are now read from disk, recursively resolved, and merged into the pipeline before linting; enables cross-file `extends:` and `needs:` validation for multi-file pipelines
+
+- **Cross-platform release builds** — two Taskfile tasks for tagged release binaries:
   - `task build-windows` — cross-compiles for Windows x64; output: `glint-<tag>.exe`
   - `task build-linux` — cross-compiles for Linux x64; output: `glint-<tag>-linux-amd64`
-  - Both tasks enforce that the current commit carries an exact git tag (`git describe --tags --exact-match`); they abort with a clear error otherwise
+  - Both tasks require an exact git tag on the current commit
+
+### Fixed
+
+- **`extends:` unknown base no longer fatal** — when a base job referenced by `extends:` does not exist, glint now emits a resolver warning and skips extends resolution for that job rather than aborting with exit code 2; linting continues on the job's own fields
+- **`script: |` (block scalar) support** — jobs using a multiline block scalar for `script:`, `before_script:`, or `after_script:` are now parsed correctly; previously caused false-positive "missing script" errors
+
+### Changed
+
+- **`glint <file>` removed** — use `glint check <file>`
+- **`--graph <mode>` removed** — replaced by `glint graph [mode]`
+- **`--graph-out` renamed to `--out`** — now a flag on `glint graph` (`glint graph pipeline --out <dir>`)
 
 ## [0.1.0] - 2026-06-07
 

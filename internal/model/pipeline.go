@@ -31,10 +31,10 @@ type Workflow struct {
 type Job struct {
 	Name         string   // set by parser, not from YAML
 	Stage        string   `yaml:"stage"`
-	Script       []string `yaml:"script"`
-	Run          any      `yaml:"run"` // alternative to script (CI steps)
-	BeforeScript []string `yaml:"before_script"`
-	AfterScript  []string `yaml:"after_script"`
+	Script       any `yaml:"script"`       // []string or string (block scalar)
+	Run          any `yaml:"run"`          // alternative to script (CI steps)
+	BeforeScript any `yaml:"before_script"` // []string or string
+	AfterScript  any `yaml:"after_script"`  // []string or string
 	Image        any      `yaml:"image"`
 	Services     []any    `yaml:"services"`
 	Variables    map[string]string `yaml:"variables"`

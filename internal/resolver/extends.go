@@ -10,33 +10,45 @@ import (
 // Resolve resolves all extends: references in p.Jobs in place.
 // Jobs are merged depth-first so that base definitions are resolved before
 // derived ones. Mutates p.Jobs with the fully merged Job structs.
-func Resolve(p *model.Pipeline) error {
+//
+// The first return value lists extends references whose base job could not be
+// found (e.g. it lives in a remote include that was not fetched). Those jobs
+// are left unmerged but still passed to the linter. A non-nil error is only
+// returned for unrecoverable situations such as circular dependencies.
+func Resolve(p *model.Pipeline) ([]ExtendWarning, error) {
+	var extWarnings []ExtendWarning
+
 	// Build extends graph: jobName -> ordered list of base job names.
 	extendsGraph := make(map[string][]string, len(p.Jobs))
 	for name, job := range p.Jobs {
 		bases, err := parseExtends(job.Extends)
 		if err != nil {
-			return fmt.Errorf("job %q: invalid extends: %w", name, err)
+			return extWarnings, fmt.Errorf("job %q: invalid extends: %w", name, err)
 		}
 		if len(bases) == 0 {
 			continue
 		}
+		skip := false
 		for _, base := range bases {
 			if _, ok := p.RawJobs[base]; !ok {
-				return fmt.Errorf("job %q extends unknown job %q", name, base)
+				extWarnings = append(extWarnings, ExtendWarning{Job: name, Base: base})
+				skip = true
 			}
+		}
+		if skip {
+			continue // leave this job unmerged; still linted with its own fields
 		}
 		extendsGraph[name] = bases
 	}
 
 	if len(extendsGraph) == 0 {
-		return nil
+		return extWarnings, nil
 	}
 
 	// Topological sort — bases must be resolved before derived jobs.
 	order, err := topoSort(extendsGraph)
 	if err != nil {
-		return err
+		return extWarnings, err
 	}
 
 	// resolved holds the final merged raw map for each processed job.
@@ -61,17 +73,17 @@ func Resolve(p *model.Pipeline) error {
 		// Re-decode the merged map into a Job struct.
 		data, err := yaml.Marshal(merged)
 		if err != nil {
-			return fmt.Errorf("job %q: re-encoding merged definition: %w", name, err)
+			return extWarnings, fmt.Errorf("job %q: re-encoding merged definition: %w", name, err)
 		}
 		var j model.Job
 		if err := yaml.Unmarshal(data, &j); err != nil {
-			return fmt.Errorf("job %q: re-decoding merged definition: %w", name, err)
+			return extWarnings, fmt.Errorf("job %q: re-decoding merged definition: %w", name, err)
 		}
 		j.Name = name
 		p.Jobs[name] = j
 	}
 
-	return nil
+	return extWarnings, nil
 }
 
 // parseExtends normalises the extends field (string or []any) into []string.

@@ -1,6 +1,6 @@
 # Compiled binaries
-glint
-glint.exe
+/glint
+/glint.exe
 dist/
 bin/
 

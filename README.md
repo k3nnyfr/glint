@@ -1,7 +1,7 @@
 # glint
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue.svg)](CHANGELOG.md)
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
 
@@ -18,8 +18,11 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Remote project includes** — fetches `include: project:` templates from the GitLab API so extends/needs can be validated against the full merged pipeline
 - **CI/CD catalog components** — resolves `include: component:` references from the GitLab CI/CD Catalog; public components work without a token
 - **Deprecation warnings** — flags `only`/`except` usage in favour of `rules`
-- **Graph output** — emits Mermaid diagrams for the include dependency tree and the pipeline jobs layout (DAG or classic stage ordering)
-- **Context simulation** — pass `--branch`, `--tag`, or `--source` to see which jobs would be active, manual, or skipped for a specific branch push, tag, or pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
+- **Local include resolution** — `include: local:` entries are read from disk and recursively merged before linting, so multi-file pipelines are fully validated
+- **Graph output** — `glint graph` prints a job tree (stages → jobs) to the terminal; `glint graph includes` emits a Mermaid include dependency diagram; `glint graph pipeline` renders a GitLab CI-style PNG/SVG
+- **Context simulation** — pass `--branch`, `--tag`, or `--source` to `glint check` or `glint graph` to see which jobs would be active, manual, or skipped for a specific pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
+
+See [ROADMAP.md](ROADMAP.md) for planned improvements.
 
 ## Requirements
 
@@ -42,8 +45,20 @@ task build
 
 ## Usage
 
+```
+glint [OPTIONS] <COMMAND>
+
+Commands:
+  check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
+  graph    Visualise the pipeline as a job tree or Mermaid graph
+```
+
+Run `glint <command> --help` for command-specific options and examples.
+
+### `glint check`
+
 ```bash
-glint [options] <pipeline.yml>
+glint check .gitlab-ci.yml
 ```
 
 Exits `0` when no errors are found, `1` when at least one error is reported.
@@ -55,16 +70,16 @@ Provide a token so `glint` can fetch them:
 
 ```bash
 # personal access token (read_api scope)
-GITLAB_TOKEN=glpat-xxxx glint .gitlab-ci.yml
+GITLAB_TOKEN=glpat-xxxx glint check .gitlab-ci.yml
 
 # CI/CD job token (when running inside a pipeline)
-CI_JOB_TOKEN=$CI_JOB_TOKEN glint .gitlab-ci.yml
+CI_JOB_TOKEN=$CI_JOB_TOKEN glint check .gitlab-ci.yml
 
 # self-hosted GitLab
-GITLAB_TOKEN=glpat-xxxx GITLAB_URL=https://gitlab.example.com glint .gitlab-ci.yml
+GITLAB_TOKEN=glpat-xxxx GITLAB_URL=https://gitlab.example.com glint check .gitlab-ci.yml
 
 # or via flags
-glint --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
+glint check --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
 ```
 
 **Project includes** require a token; without one they are skipped with a
@@ -104,26 +119,36 @@ GitLab at runtime. Jobs in fetched components may use `$[[ inputs.xxx ]]`
 placeholders in fields like `stage`; `glint` skips those fields rather
 than producing false positive errors.
 
-### Graph output
+### `glint graph`
 
-Pass `--graph` to visualise the pipeline instead of running lint rules.
+Visualise the pipeline. Without a mode word, prints a job tree and the include
+dependency graph separated by `---`.
 
 ```bash
-# Include dependency graph (which files include which) → Mermaid to stdout
-glint --graph includes .gitlab-ci.yml > includes.mmd
+# Default: job tree + include dependency graph
+glint graph .gitlab-ci.yml
 
-# GitLab-like pipeline layout → PNG (or SVG fallback) written to --graph-out dir
-glint --graph pipeline .gitlab-ci.yml
+# Job tree only (stages → jobs, like the tree command)
+glint graph tree .gitlab-ci.yml
+
+# Include dependency graph → Mermaid flowchart to stdout
+glint graph includes .gitlab-ci.yml > includes.mmd
+
+# GitLab-like pipeline layout → PNG (or SVG fallback) written to --out dir
+glint graph pipeline .gitlab-ci.yml
 # prints the output file path, e.g.: glint-out/pipeline-20260607-143022.png
 
-# Both at once: Mermaid to stdout + pipeline file path to stderr
-glint --graph all .gitlab-ci.yml > includes.mmd
+# Mermaid to stdout + pipeline file path to stderr
+glint graph all .gitlab-ci.yml > includes.mmd
 
-# Custom output directory
-glint --graph pipeline --graph-out /tmp/graphs .gitlab-ci.yml
+# Custom output directory (pipeline mode)
+glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
 ```
 
-**Include graph** (`--graph includes`) — [Mermaid](https://mermaid.js.org) flowchart written to stdout.
+**Job tree** (`graph tree`) — stages as branches, jobs as leaves. Jobs with
+`when: manual`, `when: delayed`, or `trigger:` are annotated in brackets.
+
+**Include graph** (`graph includes`) — [Mermaid](https://mermaid.js.org) flowchart written to stdout.
 Pipe to a `.mmd` file or paste into [mermaid.live](https://mermaid.live).
 One node per include entry, colour-coded by type:
 - Orange (bold): the main pipeline file
@@ -133,8 +158,8 @@ One node per include entry, colour-coded by type:
 - Grey: `remote:` URL includes
 - Light orange: GitLab-provided `template:` includes
 
-**Pipeline graph** (`--graph pipeline`) — GitLab CI-style SVG rendered to a timestamped file
-in the `--graph-out` directory (default: `glint-out/`). Converted to PNG automatically
+**Pipeline graph** (`graph pipeline`) — GitLab CI-style SVG rendered to a timestamped file
+in the `--out` directory (default: `glint-out/`). Converted to PNG automatically
 when `rsvg-convert`, `inkscape`, or `magick` is available; falls back to SVG otherwise.
 Jobs are colour-coded by type:
 - Blue (`#1f75cb`): regular jobs
@@ -147,21 +172,22 @@ Classic mode draws L-shaped or straight connectors between stage columns otherwi
 
 ### Context simulation
 
-Pass `--branch`, `--tag`, or `--source` to see which jobs would run for a given
-pipeline event. The pipeline is still fully linted; context output is printed first.
+Pass `--branch`, `--tag`, or `--source` to `glint check` to see which jobs
+would run for a given pipeline event. The pipeline is still fully linted;
+context output is printed first.
 
 ```bash
 # What runs on a push to develop?
-glint --branch develop .gitlab-ci.yml
+glint check --branch develop .gitlab-ci.yml
 
 # What runs when a v1.2.0 tag is pushed?
-glint --tag v1.2.0 .gitlab-ci.yml
+glint check --tag v1.2.0 .gitlab-ci.yml
 
 # Merge request pipeline
-glint --source merge_request_event .gitlab-ci.yml
+glint check --source merge_request_event .gitlab-ci.yml
 
 # Arbitrary variable overrides (repeatable)
-glint --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
+glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
 ```
 
 **Evaluated:**
@@ -267,7 +293,7 @@ OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
 | ERROR | Circular dependency detected in `needs:` graph |
 | ERROR | `dependencies:` references a job that does not exist |
 | ERROR | `dependencies:` references a job in the same or a later stage |
-| ERROR | `extends:` references an unknown job |
+| WARNING | `extends:` references an unknown base job (resolver warning; extends chain skipped for that job) |
 | ERROR | Cycle detected in `extends:` graph |
 
 ### Hidden jobs (templates)
