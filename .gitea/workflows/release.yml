@@ -9,13 +9,14 @@ jobs:
   release:
     name: Build and publish release
     runs-on: ubuntu-latest
+    container:
+      image: golang:1.26-alpine
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Install tools
+        run: apk add --no-cache curl git jq
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
+      - uses: actions/checkout@v4
 
       - name: Build Linux (amd64)
         env:
