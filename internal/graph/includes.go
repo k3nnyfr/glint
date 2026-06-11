@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"git.k3nny.fr/glint/internal/fetcher"
@@ -11,6 +12,8 @@ import (
 )
 
 // Includes returns a Mermaid flowchart of the full include dependency tree.
+// Each node shows the jobs defined directly in that file, connected with
+// dashed arrows (solid arrows represent the include hierarchy itself).
 // It recurses into project:, component:, and local: includes to expose
 // transitive dependencies. Includes that cannot be fetched are shown but not expanded.
 func Includes(sourcePath string, rawIncludes []any, cfg fetcher.GitLabConfig) string {
@@ -19,7 +22,12 @@ func Includes(sourcePath string, rawIncludes []any, cfg fetcher.GitLabConfig) st
 		cfg:     cfg,
 		baseDir: filepath.Dir(sourcePath),
 	}
-	root := &treeNode{id: "root", label: mermaidLabel(sourcePath), class: "main"}
+	root := &treeNode{
+		id:    "root",
+		label: mermaidLabel(sourcePath),
+		class: "main",
+		jobs:  directJobs(sourcePath),
+	}
 	b.buildChildren(root, rawIncludes)
 	return renderTree(root)
 }
@@ -29,6 +37,7 @@ type treeNode struct {
 	label    string
 	class    string
 	children []*treeNode
+	jobs     []string // job names defined directly in this file
 }
 
 // treeBuilder accumulates state while recursively traversing include entries.
@@ -126,7 +135,11 @@ func (b *treeBuilder) recurseLocal(node *treeNode, path string) {
 		return
 	}
 	p, err := model.ParseBytes(data)
-	if err != nil || len(p.Include) == 0 {
+	if err != nil {
+		return
+	}
+	node.jobs = jobNames(p)
+	if len(p.Include) == 0 {
 		return
 	}
 	orig := b.baseDir
@@ -147,7 +160,11 @@ func (b *treeBuilder) recurseProject(node *treeNode, project, filePath, ref stri
 		return
 	}
 	p, err := model.ParseBytes(data)
-	if err != nil || len(p.Include) == 0 {
+	if err != nil {
+		return
+	}
+	node.jobs = jobNames(p)
+	if len(p.Include) == 0 {
 		return
 	}
 	b.buildChildren(node, p.Include)
@@ -172,7 +189,11 @@ func (b *treeBuilder) recurseComponent(node *treeNode, ref string) {
 		return
 	}
 	p, err := model.ParseBytes(data)
-	if err != nil || len(p.Include) == 0 {
+	if err != nil {
+		return
+	}
+	node.jobs = jobNames(p)
+	if len(p.Include) == 0 {
 		return
 	}
 	b.buildChildren(node, p.Include)
@@ -193,11 +214,19 @@ func renderTree(root *treeNode) string {
 	w("    classDef local fill:#428fdc,stroke:#1068bf,color:#fff")
 	w("    classDef remote fill:#868686,stroke:#686868,color:#fff")
 	w("    classDef template fill:#fc6d26,stroke:#e56b1f,color:#fff")
+	w("    classDef job fill:#f5f5ff,stroke:#7175a0,color:#333")
 	w("")
 
+	jobCounter := 0
 	var emit func(n *treeNode)
 	emit = func(n *treeNode) {
 		wf("    %s[\"%s\"]:::%s", n.id, n.label, n.class)
+		for _, jobName := range n.jobs {
+			jobCounter++
+			jobID := fmt.Sprintf("job%d", jobCounter)
+			wf("    %s(\"%s\"):::job", jobID, mermaidLabel(jobName))
+			wf("    %s -.-> %s", n.id, jobID)
+		}
 		for _, child := range n.children {
 			emit(child)
 			wf("    %s --> %s", n.id, child.id)
@@ -206,6 +235,29 @@ func renderTree(root *treeNode) string {
 	emit(root)
 
 	return sb.String()
+}
+
+// directJobs parses a single pipeline file (without include resolution) and
+// returns the sorted list of job names defined directly in it.
+func directJobs(path string) []string {
+	p, err := model.Parse(path)
+	if err != nil {
+		return nil
+	}
+	return jobNames(p)
+}
+
+// jobNames returns a sorted slice of all job names defined in p.
+func jobNames(p *model.Pipeline) []string {
+	if len(p.Jobs) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(p.Jobs))
+	for name := range p.Jobs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // parseComponentRef parses a CI/CD component reference of the form
