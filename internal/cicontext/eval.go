@@ -9,12 +9,15 @@ import (
 // variable resolver.
 //
 // Supported:
-//   - Variable references: $VAR_NAME
+//   - Variable references: $VAR_NAME or ${VAR_NAME}
 //   - String literals:     "value" or 'value'
 //   - Null keyword:        null
 //   - Comparison:          == != =~ !~
 //   - Boolean:             && || !
 //   - Grouping:            ( )
+//   - Regex flags:         /pattern/i (case-insensitive), /pattern/m, /pattern/s
+//   - Multi-line:          newlines between tokens are treated as whitespace
+//   - Variable regex RHS:  $VAR =~ $PATTERN when $PATTERN holds a /regex/ string
 //
 // Regex patterns use Go's regexp syntax, which covers the common RE2 subset
 // used by GitLab CI. Unsupported or unparseable expressions fall back to true
@@ -56,8 +59,13 @@ func (p *exprParser) consume(tok string) bool {
 }
 
 func (p *exprParser) skipWS() {
-	for p.pos < len(p.s) && (p.s[p.pos] == ' ' || p.s[p.pos] == '\t') {
-		p.pos++
+	for p.pos < len(p.s) {
+		b := p.s[p.pos]
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
+			p.pos++
+			continue
+		}
+		break
 	}
 }
 
@@ -67,11 +75,11 @@ func (p *exprParser) skipWS() {
 //   and_expr   → not_expr ( '&&' not_expr )*
 //   not_expr   → '!' not_expr | primary
 //   primary    → '(' or_expr ')' | comparison
-//   comparison → value ( op value | regex_op regex )? | value
-//   value      → '$' ident | '"' … '"' | "'" … "'" | 'null'
+//   comparison → value ( op value | regex_op regex_rhs )?
+//   value      → '$' '{' ident '}' | '$' ident | '"' … '"' | "'" … "'" | 'null'
 //   op         → '==' | '!='
 //   regex_op   → '=~' | '!~'
-//   regex      → '/' … '/'
+//   regex_rhs  → '/' … '/' flags? | '$' ident (where ident value is '/…/flags')
 
 func (p *exprParser) parseOr() (bool, bool) {
 	left, ok := p.parseAnd()
@@ -165,8 +173,11 @@ func (p *exprParser) parseComparison() (bool, bool) {
 
 	case p.consume("=~"):
 		p.skipWS()
-		pat, ok := p.parseRegexLiteral()
-		if !ok {
+		pat, patOk, permissive := p.parseRegexRHS()
+		if permissive {
+			return true, true
+		}
+		if !patOk {
 			return false, false
 		}
 		re, err := regexp.Compile(pat)
@@ -177,8 +188,11 @@ func (p *exprParser) parseComparison() (bool, bool) {
 
 	case p.consume("!~"):
 		p.skipWS()
-		pat, ok := p.parseRegexLiteral()
-		if !ok {
+		pat, patOk, permissive := p.parseRegexRHS()
+		if permissive {
+			return true, true
+		}
+		if !patOk {
 			return false, false
 		}
 		re, err := regexp.Compile(pat)
@@ -192,13 +206,47 @@ func (p *exprParser) parseComparison() (bool, bool) {
 	return leftStr != "", true
 }
 
-// parseValue reads $VAR, "string", 'string', or null.
+// parseRegexRHS parses the right-hand side of =~ / !~ operators.
+// Returns (pattern, ok, permissive):
+//   - /regex/flags literal  → (pattern, true, false)
+//   - $VAR whose value is /regex/flags → (pattern, true, false)
+//   - $VAR whose value is empty or not a /regex/ → ("", false, true) — caller uses permissive true
+//   - parse error → ("", false, false)
+func (p *exprParser) parseRegexRHS() (pat string, ok bool, permissive bool) {
+	if p.peek() == '/' {
+		pat, ok = p.parseRegexLiteral()
+		return pat, ok, false
+	}
+	if p.peek() == '$' {
+		varVal, varOk := p.parseValue()
+		if !varOk {
+			return "", false, false
+		}
+		pat, ok = extractRegexFromString(varVal)
+		if !ok {
+			return "", false, true // variable is not a /regex/ value → permissive
+		}
+		return pat, true, false
+	}
+	return "", false, false
+}
+
+// parseValue reads $VAR, ${VAR}, "string", 'string', or null.
 // null and undefined variables both produce an empty string.
 func (p *exprParser) parseValue() (string, bool) {
 	p.skipWS()
 
 	if p.peek() == '$' {
 		p.pos++ // consume '$'
+		if p.peek() == '{' {
+			p.pos++ // consume '{'
+			name := p.parseIdent()
+			if name == "" || p.peek() != '}' {
+				return "", false
+			}
+			p.pos++ // consume '}'
+			return p.vars(name), true
+		}
 		name := p.parseIdent()
 		if name == "" {
 			return "", false
@@ -261,7 +309,8 @@ func (p *exprParser) parseRegexLiteral() (string, bool) {
 		b := p.s[p.pos]
 		if b == '/' {
 			p.pos++ // consume closing '/'
-			return sb.String(), true
+			flags := p.parseRegexFlags()
+			return applyRegexFlags(flags, sb.String()), true
 		}
 		if b == '\\' && p.pos+1 < len(p.s) {
 			p.pos++
@@ -273,6 +322,68 @@ func (p *exprParser) parseRegexLiteral() (string, bool) {
 		p.pos++
 	}
 	return "", false // unterminated regex
+}
+
+// parseRegexFlags reads zero or more regex flag letters (i, m, s) after the
+// closing '/'. Unknown letters are consumed but ignored.
+func (p *exprParser) parseRegexFlags() string {
+	start := p.pos
+	for p.pos < len(p.s) && isIdentByte(p.s[p.pos]) {
+		p.pos++
+	}
+	return p.s[start:p.pos]
+}
+
+// applyRegexFlags prepends Go regexp flag groups to pattern (e.g. (?i) for 'i').
+// Unknown flags are silently ignored.
+func applyRegexFlags(flags, pattern string) string {
+	if flags == "" {
+		return pattern
+	}
+	var prefix strings.Builder
+	for _, f := range flags {
+		switch f {
+		case 'i':
+			prefix.WriteString("(?i)")
+		case 'm':
+			prefix.WriteString("(?m)")
+		case 's':
+			prefix.WriteString("(?s)")
+		}
+	}
+	return prefix.String() + pattern
+}
+
+// extractRegexFromString parses a /pattern/flags string (typically from a CI
+// variable) and returns a Go regexp pattern with flags applied.
+func extractRegexFromString(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if len(s) == 0 || s[0] != '/' {
+		return "", false
+	}
+	var sb strings.Builder
+	i := 1
+	for i < len(s) {
+		b := s[i]
+		if b == '/' {
+			i++ // past closing '/'
+			var flags strings.Builder
+			for i < len(s) && isIdentByte(s[i]) {
+				flags.WriteByte(s[i])
+				i++
+			}
+			return applyRegexFlags(flags.String(), sb.String()), true
+		}
+		if b == '\\' && i+1 < len(s) {
+			i++
+			sb.WriteByte('\\')
+			sb.WriteByte(s[i])
+		} else {
+			sb.WriteByte(b)
+		}
+		i++
+	}
+	return "", false // unterminated
 }
 
 func isIdentByte(b byte) bool {

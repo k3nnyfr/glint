@@ -5,10 +5,14 @@ import "testing"
 func TestEvalIf(t *testing.T) {
 	vars := func(key string) string {
 		m := map[string]string{
-			"CI_COMMIT_BRANCH": "develop",
-			"CI_COMMIT_TAG":    "",
+			"CI_COMMIT_BRANCH":  "develop",
+			"CI_COMMIT_TAG":     "",
 			"CI_PIPELINE_SOURCE": "push",
-			"DEPLOY_ENV":       "staging",
+			"DEPLOY_ENV":        "staging",
+			"BRANCH_PATTERN":    "/^dev/",
+			"BRANCH_PATTERN_CI": "/^DEV/i",
+			"EMPTY_PATTERN":     "",
+			"PLAIN_PATTERN":     "develop",
 		}
 		return m[key]
 	}
@@ -68,6 +72,36 @@ func TestEvalIf(t *testing.T) {
 		// ── Extra whitespace ──────────────────────────────────────────────────
 		{"extra spaces", `  $CI_COMMIT_BRANCH  ==  "develop"  `, true},
 		{"tabs", "$CI_COMMIT_BRANCH\t==\t\"develop\"", true},
+
+		// ── Multi-line expressions (newlines between tokens) ──────────────────
+		{"multiline or true", "$CI_COMMIT_BRANCH == \"develop\" ||\n$CI_COMMIT_TAG != null", true},
+		{"multiline or false", "$CI_COMMIT_BRANCH == \"main\" ||\n$CI_COMMIT_TAG != null", false},
+		{"multiline and true", "$CI_COMMIT_BRANCH == \"develop\" &&\n$CI_PIPELINE_SOURCE == \"push\"", true},
+		{"multiline and false", "$CI_COMMIT_BRANCH == \"main\" &&\n$CI_PIPELINE_SOURCE == \"push\"", false},
+		{"multiline with crlf", "$CI_COMMIT_BRANCH == \"develop\" ||\r\n$CI_COMMIT_TAG != null", true},
+
+		// ── ${VAR} curly-brace syntax ─────────────────────────────────────────
+		{"curly var eq match", `${CI_COMMIT_BRANCH} == "develop"`, true},
+		{"curly var eq no match", `${CI_COMMIT_BRANCH} == "main"`, false},
+		{"curly var truthiness", `${CI_COMMIT_BRANCH}`, true},
+		{"curly var falsy", `${CI_COMMIT_TAG}`, false},
+		{"curly var neq null", `${CI_COMMIT_BRANCH} != null`, true},
+		{"curly mixed", `${CI_COMMIT_BRANCH} == "develop" && $CI_PIPELINE_SOURCE == "push"`, true},
+
+		// ── Regex flags (/pattern/i etc.) ─────────────────────────────────────
+		{"regex flag i match", `$CI_COMMIT_BRANCH =~ /^DEV/i`, true},
+		{"regex flag i no match", `$CI_COMMIT_BRANCH =~ /^MAIN/i`, false},
+		{"regex flag i not match", `$CI_COMMIT_BRANCH !~ /^MAIN/i`, true},
+		{"regex no flag case sensitive", `$CI_COMMIT_BRANCH =~ /^DEV/`, false},
+		{"regex flag i version tag", `$CI_PIPELINE_SOURCE =~ /^PUSH$/i`, true},
+
+		// ── Variable on right side of =~ ──────────────────────────────────────
+		{"var regex rhs match", `$CI_COMMIT_BRANCH =~ $BRANCH_PATTERN`, true},
+		{"var regex rhs no match", `$CI_PIPELINE_SOURCE =~ $BRANCH_PATTERN`, false},
+		{"var regex rhs ci flag match", `$CI_COMMIT_BRANCH =~ $BRANCH_PATTERN_CI`, true},
+		{"var regex rhs empty permissive", `$CI_COMMIT_BRANCH =~ $EMPTY_PATTERN`, true},
+		{"var regex rhs plain permissive", `$CI_COMMIT_BRANCH =~ $PLAIN_PATTERN`, true},
+		{"var regex rhs not match", `$CI_COMMIT_BRANCH !~ $BRANCH_PATTERN`, false},
 
 		// ── Permissive fallback ───────────────────────────────────────────────
 		{"unparseable returns true", `this is not valid syntax %%%`, true},

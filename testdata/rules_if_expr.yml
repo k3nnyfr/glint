@@ -1,0 +1,51 @@
+---
+# rules_if_expr.yml
+# Exercises the rules:if: expression evaluator for:
+#   - Multi-line block-scalar expressions (|| on next line)
+#   - ${VAR} curly-brace variable syntax
+#   - Regex flags (/pattern/i case-insensitive)
+#   - Parenthesised compound expressions
+# Expected: exits 0 (lints clean with no context).
+
+stages:
+  - build
+  - deploy
+
+variables:
+  DEPLOY_ENVIRONMENTS:
+    value: "staging"
+    description: "Target deployment environment"
+
+build:
+  stage: build
+  script: make build
+  rules:
+    # Multi-line expression: || on next line
+    - if: |
+        $CI_COMMIT_BRANCH == "main" ||
+        $CI_COMMIT_BRANCH == "develop"
+      when: on_success
+    - when: never
+
+deploy-feature:
+  stage: deploy
+  script: make deploy
+  rules:
+    # ${VAR} curly-brace syntax
+    - if: '${CI_COMMIT_BRANCH} != null && ${CI_COMMIT_TAG} == null'
+      when: manual
+    - when: never
+
+release:
+  stage: deploy
+  script: make release
+  rules:
+    # Case-insensitive regex flag
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master)$/i'
+      when: on_success
+    # Parenthesised compound with multi-line
+    - if: >-
+        ($CI_COMMIT_TAG != null) &&
+        ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")
+      when: on_success
+    - when: never

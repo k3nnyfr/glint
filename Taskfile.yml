@@ -59,6 +59,12 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check --tag v1.0.0 testdata/context_rules.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/rules_if_expr.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --branch main testdata/rules_if_expr.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --branch feat/x testdata/rules_if_expr.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-coverage.yml

@@ -9,6 +9,12 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- **`rules:if:` expression evaluator improvements** — four correctness fixes to the GitLab CI expression parser:
+  - **Multi-line expressions** — newlines (`\n`, `\r`) are now treated as whitespace between tokens, so block-scalar `if:` values (e.g. `if: | ...`) and folded YAML scalars with `||`/`&&` on a continuation line are parsed correctly instead of falling back to permissive `true`.
+  - **`${VAR}` curly-brace variable syntax** — `${CI_COMMIT_BRANCH}` is now equivalent to `$CI_COMMIT_BRANCH` everywhere a value is expected.
+  - **Regex flags** — `/pattern/i`, `/pattern/m`, `/pattern/s` are now honoured; the `i` flag (case-insensitive) is translated to Go's `(?i)` prefix before compiling. Unknown flags are silently ignored.
+  - **Variable as regex RHS** — `$BRANCH =~ $PATTERN` where `$PATTERN` holds a `/regex/[flags]` string is now evaluated by extracting and compiling the pattern from the variable's value; if the value is empty or does not look like a regex literal the expression falls back to permissive `true`.
+
 - **File and line numbers on findings** — every finding now includes the source file and line where the job is defined, e.g. `[ERROR] job "deploy" (src/deploy.yml:14): …`. For jobs that come from local or fetched includes the file reflects the include source. Pipeline-level findings (workflow rules, missing stages) reference the root pipeline file.
 
 - **`glint graph includes` shows jobs per file** — each node in the Mermaid include dependency graph now shows the jobs defined directly in that file. Jobs are rendered as rounded nodes (`(name)`) in a distinct light-purple style, connected with dashed arrows (`-.->`) to distinguish ownership from the include hierarchy (solid `-->` arrows). The root pipeline file always shows its direct jobs; local and fetched project/component nodes show theirs when the file can be read.
