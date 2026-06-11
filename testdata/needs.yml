@@ -38,3 +38,12 @@ missing-needs-job:
     - echo "bad"
   needs:
     - nonexistent-job    # ERROR: job doesn't exist
+
+# optional: true — missing dep should be WARNING not ERROR
+optional-needs-job:
+  stage: build
+  script:
+    - echo "I depend on something that may not exist"
+  needs:
+    - job: nonexistent-optional-job
+      optional: true

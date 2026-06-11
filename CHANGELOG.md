@@ -15,6 +15,8 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- **`needs: optional: true` downgraded to warning** — a `needs:` entry that carries `optional: true` and references a job not present in the pipeline now emits `[WARNING]` instead of `[ERROR]`. GitLab CI silently skips such dependencies at runtime (the job is absent when its include was not triggered), so the finding was a false positive. Non-optional missing needs remain errors. Optional missing deps are also excluded from the cycle-detection graph.
+
 - **`extends:` jobs with missing script downgraded to warning** — a job that declares `extends:` but has no `script` after resolution now emits `[WARNING]` instead of `[ERROR]`. The script may legitimately come from a base job in a remote include that could not be fetched at lint time (e.g. no token configured).
 
 - **Variable map form now parses correctly** — `variables:` entries that use the extended `{value, description, options}` form (GitLab CI 13.7+) no longer cause `yaml: cannot unmarshal !!map into string`. Both `Pipeline.Variables` and per-job `Variables` now accept either plain strings or map-form declarations.

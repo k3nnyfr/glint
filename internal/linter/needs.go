@@ -6,6 +6,12 @@ import (
 	"git.k3nny.fr/glint/internal/model"
 )
 
+// needEntry is a parsed element from a job's needs: list.
+type needEntry struct {
+	job      string
+	optional bool // true when the needs entry carries optional: true
+}
+
 func checkNeeds(p *model.Pipeline) []Finding {
 	var findings []Finding
 
@@ -15,7 +21,7 @@ func checkNeeds(p *model.Pipeline) []Finding {
 		stageIndex[s] = i
 	}
 
-	// needsGraph maps each job to the list of jobs it depends on.
+	// needsGraph maps each job to the jobs it depends on (existing jobs only).
 	// Used for cycle detection after individual checks.
 	needsGraph := make(map[string][]string)
 
@@ -24,23 +30,32 @@ func checkNeeds(p *model.Pipeline) []Finding {
 			continue
 		}
 
-		neededNames := parseNeedJobNames(job.Needs)
-		needsGraph[name] = neededNames
-
+		entries := parseNeedEntries(job.Needs)
 		jobStageIdx, jobHasStage := stageIndex[job.Stage]
 
-		for _, needed := range neededNames {
-			neededJob, exists := p.Jobs[needed]
+		for _, entry := range entries {
+			neededJob, exists := p.Jobs[entry.job]
 			if !exists {
+				// optional: true means GitLab CI will silently skip the
+				// dependency when the job is absent (e.g. from a conditional
+				// include). Downgrade to warning so users are informed without
+				// failing the lint.
+				sev := Error
+				if entry.optional {
+					sev = Warning
+				}
 				findings = append(findings, Finding{
-					Severity: Error,
+					Severity: sev,
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
-					Message:  fmt.Sprintf("needs unknown job %q", needed),
+					Message:  fmt.Sprintf("needs unknown job %q", entry.job),
 				})
 				continue
 			}
+
+			// Add to the cycle-detection graph only when the dep exists.
+			needsGraph[name] = append(needsGraph[name], entry.job)
 
 			// A job cannot need a job in a later stage.
 			if len(p.Stages) > 0 && jobHasStage && neededJob.Stage != "" {
@@ -53,7 +68,7 @@ func checkNeeds(p *model.Pipeline) []Finding {
 						Line:     job.Line,
 						Message: fmt.Sprintf(
 							"needs %q which is in a later stage (%q after %q)",
-							needed, neededJob.Stage, job.Stage,
+							entry.job, neededJob.Stage, job.Stage,
 						),
 					})
 				}
@@ -65,25 +80,26 @@ func checkNeeds(p *model.Pipeline) []Finding {
 	return findings
 }
 
-// parseNeedJobNames extracts job names from a needs: list.
-// Each element is either a plain string or a map with a "job" key.
-// Cross-pipeline needs (maps with a "pipeline" key) are skipped.
-func parseNeedJobNames(needs []any) []string {
-	var names []string
+// parseNeedEntries extracts needs entries from a needs: list, preserving the
+// optional flag. Each element is a plain string (job name) or a map with a
+// "job" key. Cross-pipeline needs (maps with a "pipeline" key) are skipped.
+func parseNeedEntries(needs []any) []needEntry {
+	var entries []needEntry
 	for _, n := range needs {
 		switch v := n.(type) {
 		case string:
-			names = append(names, v)
+			entries = append(entries, needEntry{job: v})
 		case map[string]any:
 			if _, crossPipeline := v["pipeline"]; crossPipeline {
 				continue
 			}
 			if job, ok := v["job"].(string); ok {
-				names = append(names, job)
+				optional, _ := v["optional"].(bool)
+				entries = append(entries, needEntry{job: job, optional: optional})
 			}
 		}
 	}
-	return names
+	return entries
 }
 
 func detectNeedsCycles(graph map[string][]string, jobs map[string]model.Job) []Finding {
