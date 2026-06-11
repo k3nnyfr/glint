@@ -19,6 +19,7 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **CI/CD catalog components** — resolves `include: component:` references from the GitLab CI/CD Catalog; public components work without a token
 - **Deprecation warnings** — flags `only`/`except` usage in favour of `rules`
 - **Local include resolution** — `include: local:` entries are read from disk and recursively merged before linting, so multi-file pipelines are fully validated
+- **Extended variable declarations** — `variables:` entries may use the `{value, description, options}` map form (GitLab CI 13.7+); `default.image` accepts both string and map form; `rules.changes`/`rules.exists` accept both list and `{paths, compare_to}` map form
 - **Graph output** — `glint graph` prints a job tree (stages → jobs) to the terminal; `glint graph includes` emits a Mermaid include dependency diagram; `glint graph pipeline` renders a GitLab CI-style PNG/SVG
 - **Context simulation** — pass `--branch`, `--tag`, or `--source` to `glint check` or `glint graph` to see which jobs would be active, manual, or skipped for a specific pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
 
