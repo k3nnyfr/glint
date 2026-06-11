@@ -3,14 +3,26 @@ package model
 // Pipeline represents the top-level structure of a .gitlab-ci.yml file.
 // Unknown top-level keys are collected into Jobs.
 type Pipeline struct {
-	Stages    []string       `yaml:"stages"`
-	Variables map[string]any `yaml:"variables"` // string or {value,description,options} map
-	Default   *DefaultConfig `yaml:"default"`
-	Include   []any          `yaml:"include"`
-	Workflow  *Workflow      `yaml:"workflow"`
+	SourceFile string         // path of the root pipeline file; set by Parse
+	Stages     []string       `yaml:"stages"`
+	Variables  map[string]any `yaml:"variables"` // string or {value,description,options} map
+	Default    *DefaultConfig `yaml:"default"`
+	Include    []any          `yaml:"include"`
+	Workflow   *Workflow      `yaml:"workflow"`
 	// Jobs holds every non-reserved top-level key (i.e. job definitions).
 	Jobs    map[string]Job            `yaml:"-"`
 	RawJobs map[string]map[string]any `yaml:"-"` // pre-resolution raw maps, used by the resolver
+}
+
+// SetJobOrigin sets the File field on all jobs that don't already have one.
+// Called after ParseBytes to record which file each job came from.
+func (p *Pipeline) SetJobOrigin(file string) {
+	for name, j := range p.Jobs {
+		if j.File == "" {
+			j.File = file
+		}
+		p.Jobs[name] = j
+	}
 }
 
 type DefaultConfig struct {
@@ -29,7 +41,9 @@ type Workflow struct {
 }
 
 type Job struct {
-	Name         string   // set by parser, not from YAML
+	Name string // set by parser, not from YAML
+	File string // source file; set by Parse / resolver
+	Line int    // line of the job key in its source file; set by parser
 	Stage        string   `yaml:"stage"`
 	Script       any `yaml:"script"`       // []string or string (block scalar)
 	Run          any `yaml:"run"`          // alternative to script (CI steps)

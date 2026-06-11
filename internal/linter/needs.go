@@ -35,6 +35,8 @@ func checkNeeds(p *model.Pipeline) []Finding {
 				findings = append(findings, Finding{
 					Severity: Error,
 					Job:      name,
+					File:     job.File,
+					Line:     job.Line,
 					Message:  fmt.Sprintf("needs unknown job %q", needed),
 				})
 				continue
@@ -47,6 +49,8 @@ func checkNeeds(p *model.Pipeline) []Finding {
 					findings = append(findings, Finding{
 						Severity: Error,
 						Job:      name,
+						File:     job.File,
+						Line:     job.Line,
 						Message: fmt.Sprintf(
 							"needs %q which is in a later stage (%q after %q)",
 							needed, neededJob.Stage, job.Stage,
@@ -57,7 +61,7 @@ func checkNeeds(p *model.Pipeline) []Finding {
 		}
 	}
 
-	findings = append(findings, detectNeedsCycles(needsGraph)...)
+	findings = append(findings, detectNeedsCycles(needsGraph, p.Jobs)...)
 	return findings
 }
 
@@ -82,7 +86,7 @@ func parseNeedJobNames(needs []any) []string {
 	return names
 }
 
-func detectNeedsCycles(graph map[string][]string) []Finding {
+func detectNeedsCycles(graph map[string][]string, jobs map[string]model.Job) []Finding {
 	const (
 		unvisited = 0
 		visiting  = 1
@@ -101,9 +105,12 @@ func detectNeedsCycles(graph map[string][]string) []Finding {
 		case visiting:
 			if !reported[name] {
 				reported[name] = true
+				j := jobs[name]
 				findings = append(findings, Finding{
 					Severity: Error,
 					Job:      name,
+					File:     j.File,
+					Line:     j.Line,
 					Message:  fmt.Sprintf("circular dependency in needs: %v → %s", path, name),
 				})
 			}

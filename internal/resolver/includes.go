@@ -117,6 +117,7 @@ func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabCo
 	if err != nil {
 		return []IncludeWarning{{Label: label, Err: fmt.Errorf("parsing YAML: %w", err)}}, nil
 	}
+	included.SetJobOrigin(absPath)
 
 	// Recursively resolve the included file's own includes first, merging
 	// everything into `included` before we merge it into the parent `p`.
@@ -161,6 +162,7 @@ func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project stri
 			warnings = append(warnings, IncludeWarning{Label: label, Err: fmt.Errorf("parsing YAML: %w", err)})
 			continue
 		}
+		included.SetJobOrigin(label)
 
 		if len(included.Include) > 0 {
 			w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
@@ -200,6 +202,7 @@ func resolveComponentInclude(p *model.Pipeline, ref string, cfg fetcher.GitLabCo
 	if err != nil {
 		return IncludeWarning{Label: label, Err: fmt.Errorf("parsing component YAML: %w", err)}, nil, true
 	}
+	included.SetJobOrigin(label)
 
 	var extWarnings []ExtendWarning
 	if len(included.Include) > 0 {

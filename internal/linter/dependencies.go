@@ -24,6 +24,8 @@ func checkDependencies(p *model.Pipeline) []Finding {
 				findings = append(findings, Finding{
 					Severity: Error,
 					Job:      name,
+					File:     job.File,
+					Line:     job.Line,
 					Message:  fmt.Sprintf("'dependencies' references unknown job %q", dep),
 				})
 				continue
@@ -34,6 +36,8 @@ func checkDependencies(p *model.Pipeline) []Finding {
 					findings = append(findings, Finding{
 						Severity: Error,
 						Job:      name,
+						File:     job.File,
+						Line:     job.Line,
 						Message:  fmt.Sprintf("'dependencies' job %q must be in an earlier stage (in %q, current job is in %q)", dep, depJob.Stage, job.Stage),
 					})
 				}

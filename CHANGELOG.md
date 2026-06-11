@@ -9,9 +9,13 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- **File and line numbers on findings** — every finding now includes the source file and line where the job is defined, e.g. `[ERROR] job "deploy" (src/deploy.yml:14): …`. For jobs that come from local or fetched includes the file reflects the include source. Pipeline-level findings (workflow rules, missing stages) reference the root pipeline file.
+
 - **`glint graph includes` shows jobs per file** — each node in the Mermaid include dependency graph now shows the jobs defined directly in that file. Jobs are rendered as rounded nodes (`(name)`) in a distinct light-purple style, connected with dashed arrows (`-.->`) to distinguish ownership from the include hierarchy (solid `-->` arrows). The root pipeline file always shows its direct jobs; local and fetched project/component nodes show theirs when the file can be read.
 
 ### Fixed
+
+- **`extends:` jobs with missing script downgraded to warning** — a job that declares `extends:` but has no `script` after resolution now emits `[WARNING]` instead of `[ERROR]`. The script may legitimately come from a base job in a remote include that could not be fetched at lint time (e.g. no token configured).
 
 - **Variable map form now parses correctly** — `variables:` entries that use the extended `{value, description, options}` form (GitLab CI 13.7+) no longer cause `yaml: cannot unmarshal !!map into string`. Both `Pipeline.Variables` and per-job `Variables` now accept either plain strings or map-form declarations.
 - **`default.image` map form now parses correctly** — `default: image: {name: ..., pull_policy: ...}` used to cause `yaml: cannot unmarshal !!map into string`; `DefaultConfig.Image` is now typed as `any` to match `Job.Image`.

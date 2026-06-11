@@ -17,12 +17,25 @@ const (
 type Finding struct {
 	Severity Severity
 	Job      string // empty for pipeline-level findings
+	File     string // source file where the finding originates
+	Line     int    // line number in File (0 = unknown)
 	Message  string
 }
 
 func (f Finding) String() string {
+	loc := ""
+	if f.File != "" {
+		if f.Line > 0 {
+			loc = fmt.Sprintf(" (%s:%d)", f.File, f.Line)
+		} else {
+			loc = fmt.Sprintf(" (%s)", f.File)
+		}
+	}
 	if f.Job != "" {
-		return fmt.Sprintf("[%s] job %q: %s", f.Severity, f.Job, f.Message)
+		return fmt.Sprintf("[%s] job %q%s: %s", f.Severity, f.Job, loc, f.Message)
+	}
+	if loc != "" {
+		return fmt.Sprintf("[%s]%s: %s", f.Severity, loc, f.Message)
 	}
 	return fmt.Sprintf("[%s] %s", f.Severity, f.Message)
 }
@@ -43,6 +56,7 @@ func checkStages(p *model.Pipeline) []Finding {
 	if len(p.Stages) == 0 {
 		findings = append(findings, Finding{
 			Severity: Warning,
+			File:     p.SourceFile,
 			Message:  "no stages defined; GitLab will use default stages (build, test, deploy)",
 		})
 	}
@@ -58,6 +72,7 @@ func checkWorkflow(p *model.Pipeline) []Finding {
 		if rule.When != "" && !validWorkflowRuleWhen[rule.When] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				File:     p.SourceFile,
 				Message:  fmt.Sprintf("workflow.rules[%d].when has invalid value %q; valid: always, never", i, rule.When),
 			})
 		}
@@ -88,10 +103,16 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 
 	// After extends resolution, a job with no script/run is an error.
 	// Exceptions: trigger jobs, pages jobs (use pages: keyword), and template jobs.
+	// When the job has extends:, the script may come from a base that couldn't be
+	// fetched (e.g. a remote include without a token), so downgrade to warning.
 	hasScript := scriptNonEmpty(job.Script) || job.Run != nil
 	if !isTemplate && !isTrigger && job.Pages == nil && !hasScript {
+		sev := Error
+		if job.Extends != nil {
+			sev = Warning
+		}
 		findings = append(findings, Finding{
-			Severity: Error,
+			Severity: sev,
 			Job:      name,
 			Message:  "missing required field 'script' (or 'run')",
 		})
@@ -137,6 +158,13 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 
 	findings = append(findings, checkJobKeywords(name, job)...)
 
+	// Attach source location to every job-scoped finding collected above.
+	for i := range findings {
+		if findings[i].Job != "" && findings[i].File == "" {
+			findings[i].File = job.File
+			findings[i].Line = job.Line
+		}
+	}
 	return findings
 }
 
