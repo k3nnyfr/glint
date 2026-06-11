@@ -147,6 +147,7 @@ Examples:
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
 	if !ctx.IsEmpty() {
+		enrichContext(ctx, p)
 		printContext(p, ctx)
 	}
 
@@ -272,6 +273,9 @@ Examples:
 	resolver.Resolve(p)                        //nolint:errcheck
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
+	if !ctx.IsEmpty() {
+		enrichContext(ctx, p)
+	}
 
 	switch mode {
 	case "default":
@@ -297,6 +301,24 @@ Examples:
 			os.Exit(2)
 		}
 		fmt.Fprintln(os.Stderr, outPath)
+	}
+}
+
+// enrichContext injects pipeline-level variable defaults and then
+// workflow-rule-generated variables into ctx before job evaluation.
+// Injection respects pinned variables (--branch/--tag/--source/--var always win).
+func enrichContext(ctx *cicontext.Context, p *model.Pipeline) {
+	// Pipeline variables: injected as defaults (lowest priority).
+	for k, v := range cicontext.ExtractStringVars(p.Variables) {
+		ctx.Inject(k, v)
+	}
+	// Workflow rules: evaluate to find which rule matches, then inject its variables.
+	runs, ruleVars := cicontext.EvalWorkflow(p, ctx)
+	if !runs {
+		fmt.Fprintln(os.Stderr, "[WARNING] workflow:rules: pipeline would not start for this context")
+	}
+	for k, v := range ruleVars {
+		ctx.Inject(k, v)
 	}
 }
 

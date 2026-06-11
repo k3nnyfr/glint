@@ -65,6 +65,14 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check --branch feat/x testdata/rules_if_expr.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/workflow_vars.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --branch main testdata/workflow_vars.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --branch develop testdata/workflow_vars.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --branch feat/x testdata/workflow_vars.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-coverage.yml

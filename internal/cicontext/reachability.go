@@ -28,13 +28,17 @@ func (s JobState) String() string {
 	}
 }
 
-// EvalWorkflow returns false when the pipeline's workflow:rules block would
-// prevent any pipeline from starting in the given context.
-// Returns true when ctx is empty, when there is no workflow block, or when no
-// rule is configured.
-func EvalWorkflow(p *model.Pipeline, ctx *Context) bool {
+// EvalWorkflow evaluates the pipeline's workflow:rules block against ctx.
+// Returns (runs, ruleVars):
+//   - runs=false means the pipeline would not start for this context.
+//   - ruleVars holds any variables: defined on the matching rule; inject these
+//     into the context so job rules can reference them.
+//
+// Returns (true, nil) when ctx is empty, when there is no workflow block, or
+// when no rules are configured.
+func EvalWorkflow(p *model.Pipeline, ctx *Context) (bool, map[string]string) {
 	if ctx.IsEmpty() || p.Workflow == nil || len(p.Workflow.Rules) == 0 {
-		return true
+		return true, nil
 	}
 	vars := ctx.Get
 	for _, rule := range p.Workflow.Rules {
@@ -45,9 +49,9 @@ func EvalWorkflow(p *model.Pipeline, ctx *Context) bool {
 		if when == "" {
 			when = "always"
 		}
-		return when != "never"
+		return when != "never", ExtractStringVars(rule.Variables)
 	}
-	return false // no rule matched → pipeline does not run
+	return false, nil // no rule matched → pipeline does not run
 }
 
 // EvalJob returns the effective JobState for job in the given context.

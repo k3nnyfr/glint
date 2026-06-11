@@ -80,10 +80,11 @@ type Job struct {
 }
 
 type Rule struct {
-	If      string `yaml:"if"`
-	When    string `yaml:"when"`
-	Changes any    `yaml:"changes"` // []string or {paths,compare_to} map
-	Exists  any    `yaml:"exists"`  // []string or map form
+	If        string         `yaml:"if"`
+	When      string         `yaml:"when"`
+	Changes   any            `yaml:"changes"`   // []string or {paths,compare_to} map
+	Exists    any            `yaml:"exists"`    // []string or map form
+	Variables map[string]any `yaml:"variables"` // set/override variables when rule matches (GitLab CI 15.0+)
 }
 
 // ReservedKeys are top-level GitLab CI keys that are NOT job definitions.
