@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Variable map form now parses correctly** — `variables:` entries that use the extended `{value, description, options}` form (GitLab CI 13.7+) no longer cause `yaml: cannot unmarshal !!map into string`. Both `Pipeline.Variables` and per-job `Variables` now accept either plain strings or map-form declarations.
+- **`default.image` map form now parses correctly** — `default: image: {name: ..., pull_policy: ...}` used to cause `yaml: cannot unmarshal !!map into string`; `DefaultConfig.Image` is now typed as `any` to match `Job.Image`.
+- **`default.before_script` / `default.after_script` now accept both list and scalar forms** — previously `DefaultConfig.BeforeScript` and `DefaultConfig.AfterScript` were `[]string`, causing a parse error when the field was written as a block scalar string. They are now typed as `any` to match the corresponding `Job` fields.
+- **`rules.changes` / `rules.exists` map form now parses correctly** — extended `changes: {paths: [...], compare_to: "..."}` syntax (GitLab CI 15.3+) used to cause `yaml: cannot unmarshal !!map into []string`.
+
 ## [0.2.0] - 2026-06-11
 
 ### Added

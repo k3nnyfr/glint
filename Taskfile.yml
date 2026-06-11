@@ -45,6 +45,8 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/includes_component.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/script_multiline.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/context_rules.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check --branch main testdata/context_rules.yml

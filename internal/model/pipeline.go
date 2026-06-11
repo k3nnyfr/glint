@@ -3,20 +3,20 @@ package model
 // Pipeline represents the top-level structure of a .gitlab-ci.yml file.
 // Unknown top-level keys are collected into Jobs.
 type Pipeline struct {
-	Stages    []string          `yaml:"stages"`
-	Variables map[string]string `yaml:"variables"`
-	Default   *DefaultConfig    `yaml:"default"`
-	Include   []any             `yaml:"include"`
-	Workflow  *Workflow         `yaml:"workflow"`
+	Stages    []string       `yaml:"stages"`
+	Variables map[string]any `yaml:"variables"` // string or {value,description,options} map
+	Default   *DefaultConfig `yaml:"default"`
+	Include   []any          `yaml:"include"`
+	Workflow  *Workflow      `yaml:"workflow"`
 	// Jobs holds every non-reserved top-level key (i.e. job definitions).
-	Jobs    map[string]Job                 `yaml:"-"`
-	RawJobs map[string]map[string]any      `yaml:"-"` // pre-resolution raw maps, used by the resolver
+	Jobs    map[string]Job            `yaml:"-"`
+	RawJobs map[string]map[string]any `yaml:"-"` // pre-resolution raw maps, used by the resolver
 }
 
 type DefaultConfig struct {
-	Image        string   `yaml:"image"`
-	BeforeScript []string `yaml:"before_script"`
-	AfterScript  []string `yaml:"after_script"`
+	Image        any      `yaml:"image"`        // string or {name,pull_policy,...} map
+	BeforeScript any      `yaml:"before_script"` // []string or string (block scalar)
+	AfterScript  any      `yaml:"after_script"`  // []string or string
 	Cache        any      `yaml:"cache"`
 	Artifacts    any      `yaml:"artifacts"`
 	Retry        any      `yaml:"retry"`
@@ -37,8 +37,8 @@ type Job struct {
 	AfterScript  any `yaml:"after_script"`  // []string or string
 	Image        any      `yaml:"image"`
 	Services     []any    `yaml:"services"`
-	Variables    map[string]string `yaml:"variables"`
-	Rules        []Rule   `yaml:"rules"`
+	Variables    map[string]any `yaml:"variables"` // string or {value,description,options} map
+	Rules        []Rule         `yaml:"rules"`
 	Only         any      `yaml:"only"`
 	Except       any      `yaml:"except"`
 	Needs        []any    `yaml:"needs"`
@@ -68,8 +68,8 @@ type Job struct {
 type Rule struct {
 	If      string `yaml:"if"`
 	When    string `yaml:"when"`
-	Changes []string `yaml:"changes"`
-	Exists  []string `yaml:"exists"`
+	Changes any    `yaml:"changes"` // []string or {paths,compare_to} map
+	Exists  any    `yaml:"exists"`  // []string or map form
 }
 
 // ReservedKeys are top-level GitLab CI keys that are NOT job definitions.
