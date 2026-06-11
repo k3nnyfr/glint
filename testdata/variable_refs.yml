@@ -1,0 +1,51 @@
+---
+# variable_refs.yml
+# Verifies that GL032 does not fire for variables that are declared or predefined.
+# Covers: pipeline variables:, job variables:, workflow:rules:variables:, and CI_* prefixes.
+# Expected: exits 0 (no errors; no GL032 warnings).
+
+stages:
+  - build
+  - deploy
+
+variables:
+  DEPLOY_TARGET: "staging"
+  FEATURE_FLAG: "false"
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      variables:
+        DEPLOY_TARGET: "production"
+    - when: always
+
+build:
+  stage: build
+  script: make build
+  rules:
+    # pipeline-level variable — GL032 must not fire
+    - if: '$DEPLOY_TARGET == "staging"'
+      when: on_success
+    # predefined CI variable — GL032 must not fire
+    - if: '$CI_COMMIT_BRANCH =~ /^feat\/.+/'
+      when: manual
+
+deploy:
+  stage: deploy
+  script: make deploy
+  variables:
+    DEPLOY_REGION: "us-east-1"
+  rules:
+    # pipeline-level variable — no warning
+    - if: '$FEATURE_FLAG == "true"'
+      when: never
+    # workflow-rule-injected variable — no warning
+    - if: '$DEPLOY_TARGET == "production"'
+      when: on_success
+    # job-level variable — no warning
+    - if: '$DEPLOY_REGION == "us-east-1"'
+      when: on_success
+    # predefined GITLAB_ variable — no warning
+    - if: '$GITLAB_USER_LOGIN == "bot"'
+      when: never
+    - when: manual

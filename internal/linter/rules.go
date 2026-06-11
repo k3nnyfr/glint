@@ -107,4 +107,11 @@ const (
 
 	// GL031: dependencies: references a job in the same or a later stage.
 	RuleDependencyStage = "GL031"
+
+	// ── Expression validation ────────────────────────────────────────────────
+
+	// GL032: rules:if: references a variable not declared in pipeline variables:,
+	// the job's own variables:, or any workflow:rules:variables: block.
+	// May be a false positive for variables set in GitLab CI/CD project settings.
+	RuleUndeclaredVariable = "GL032"
 )

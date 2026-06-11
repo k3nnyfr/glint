@@ -53,6 +53,7 @@ func Lint(p *model.Pipeline) []Finding {
 	findings = append(findings, checkJobs(p)...)
 	findings = append(findings, checkNeeds(p)...)
 	findings = append(findings, checkDependencies(p)...)
+	findings = append(findings, checkVariableRefs(p)...)
 	return findings
 }
 

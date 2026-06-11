@@ -298,6 +298,12 @@ Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filte
 | GL030 | ERROR | `dependencies:` references a job that does not exist |
 | GL031 | ERROR | `dependencies:` references a job in the same or a later stage |
 
+### Expression validation
+
+| ID | Severity | Rule |
+|----|----------|------|
+| GL032 | WARNING | `rules:if:` references `$VAR` not declared in `variables:` (pipeline, job, or `workflow:rules:variables:`) — may be a false positive for variables set in GitLab CI/CD project settings |
+
 ### Hidden jobs (templates)
 
 Jobs whose name starts with `.` are treated as reusable templates and skipped for most rules. This matches GitLab's own behaviour.
