@@ -9,6 +9,8 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- **Structured rule IDs** — every finding now carries a stable `GL###` identifier (e.g. `GL003`) that appears in the output between the location and the message: `[ERROR] job "deploy" (file.yml:14) GL003: missing required field 'script'`. IDs are assigned per check function across 31 rules (GL001–GL031) and are stable across versions. The `linter.Finding` struct exposes the ID as a `Rule string` field for programmatic consumers. The README lint rules table is updated with ID columns.
+
 - **`workflow:rules:variables:` now propagate to job rule evaluation** — when a `workflow:rules:` entry matches, any `variables:` it defines are injected into the evaluation context so job `rules:if:` expressions can reference them. Pipeline-level `variables:` are also available as defaults (lower priority). Variable priority order, highest first: `--var` CLI overrides → `--branch`/`--tag`/`--source` shortcuts → workflow-rule variables → pipeline-level variable defaults. This means `$DEPLOY_TARGET == "production"` in a job rule correctly evaluates when a workflow rule sets `DEPLOY_TARGET: production` for the matching branch. The `glint graph tree` command benefits from the same enrichment.
 
 - **`rules:if:` expression evaluator improvements** — six correctness fixes to the GitLab CI expression parser:

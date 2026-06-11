@@ -105,6 +105,7 @@ func checkWhen(name string, job model.Job) []Finding {
 	if job.When != "" && !validJobWhen[job.When] {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleInvalidWhen,
 			Job:      name,
 			Message:  fmt.Sprintf("'when' has invalid value %q; valid: on_success, on_failure, always, manual, delayed, never", job.When),
 		})
@@ -112,6 +113,7 @@ func checkWhen(name string, job model.Job) []Finding {
 	if job.When == "delayed" && job.StartIn == "" {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleDelayedNoStartIn,
 			Job:      name,
 			Message:  "'when: delayed' requires 'start_in' (e.g. 'start_in: 30 minutes')",
 		})
@@ -119,6 +121,7 @@ func checkWhen(name string, job model.Job) []Finding {
 	if job.When != "delayed" && job.StartIn != "" {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleStartInNoDelayed,
 			Job:      name,
 			Message:  "'start_in' is only valid when 'when: delayed'",
 		})
@@ -135,6 +138,7 @@ func checkParallel(name string, job model.Job) []Finding {
 		if v < 2 || v > 200 {
 			return []Finding{{
 				Severity: Error,
+				Rule:     RuleInvalidParallel,
 				Job:      name,
 				Message:  fmt.Sprintf("'parallel' must be between 2 and 200, got %d", v),
 			}}
@@ -143,6 +147,7 @@ func checkParallel(name string, job model.Job) []Finding {
 		if _, ok := v["matrix"]; !ok {
 			return []Finding{{
 				Severity: Error,
+				Rule:     RuleInvalidParallel,
 				Job:      name,
 				Message:  "'parallel' map form must have a 'matrix' key",
 			}}
@@ -150,6 +155,7 @@ func checkParallel(name string, job model.Job) []Finding {
 	default:
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidParallel,
 			Job:      name,
 			Message:  "'parallel' must be an integer (2–200) or a map with 'matrix'",
 		}}
@@ -166,6 +172,7 @@ func checkRetry(name string, job model.Job) []Finding {
 		if v < 0 || v > 2 {
 			return []Finding{{
 				Severity: Error,
+				Rule:     RuleInvalidRetry,
 				Job:      name,
 				Message:  fmt.Sprintf("'retry' must be 0, 1, or 2; got %d", v),
 			}}
@@ -176,6 +183,7 @@ func checkRetry(name string, job model.Job) []Finding {
 			if n, ok := maxVal.(int); ok && (n < 0 || n > 2) {
 				findings = append(findings, Finding{
 					Severity: Error,
+					Rule:     RuleInvalidRetry,
 					Job:      name,
 					Message:  fmt.Sprintf("'retry.max' must be 0, 1, or 2; got %d", n),
 				})
@@ -188,6 +196,7 @@ func checkRetry(name string, job model.Job) []Finding {
 	default:
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidRetry,
 			Job:      name,
 			Message:  "'retry' must be an integer (0–2) or a map with 'max'/'when'",
 		}}
@@ -201,6 +210,7 @@ func validateRetryWhen(name string, val any) []Finding {
 		if !validRetryWhen[s] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidRetryWhen,
 				Job:      name,
 				Message:  fmt.Sprintf("'retry.when' has invalid value %q", s),
 			})
@@ -230,6 +240,7 @@ func checkAllowFailure(name string, job model.Job) []Finding {
 		if _, ok := v["exit_codes"]; !ok {
 			return []Finding{{
 				Severity: Error,
+				Rule:     RuleInvalidAllowFailure,
 				Job:      name,
 				Message:  "'allow_failure' map form must contain 'exit_codes'",
 			}}
@@ -238,6 +249,7 @@ func checkAllowFailure(name string, job model.Job) []Finding {
 		_ = v
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidAllowFailure,
 			Job:      name,
 			Message:  "'allow_failure' must be a boolean or a map with 'exit_codes'",
 		}}
@@ -252,6 +264,7 @@ func checkInterruptible(name string, job model.Job) []Finding {
 	if _, ok := job.Interruptible.(bool); !ok {
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidInterruptible,
 			Job:      name,
 			Message:  "'interruptible' must be a boolean",
 		}}
@@ -267,6 +280,7 @@ func checkTrigger(name string, job model.Job) []Finding {
 	if scriptNonEmpty(job.Script) {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleTriggerWithScript,
 			Job:      name,
 			Message:  "jobs with 'trigger' cannot use 'script'",
 		})
@@ -277,6 +291,7 @@ func checkTrigger(name string, job model.Job) []Finding {
 		if !hasProject && !hasInclude {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidTrigger,
 				Job:      name,
 				Message:  "'trigger' map must specify 'project' or 'include'",
 			})
@@ -294,6 +309,7 @@ func checkCoverage(name string, job model.Job) []Finding {
 	if !coveragePattern.MatchString(job.Coverage) {
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidCoverage,
 			Job:      name,
 			Message:  fmt.Sprintf("'coverage' must be a regex pattern wrapped in '/' (e.g. '/\\d+\\.?\\d*%%/'), got %q", job.Coverage),
 		}}
@@ -309,6 +325,7 @@ func checkRelease(name string, job model.Job) []Finding {
 	if !ok {
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidRelease,
 			Job:      name,
 			Message:  "'release' must be a map",
 		}}
@@ -317,6 +334,7 @@ func checkRelease(name string, job model.Job) []Finding {
 	if !exists || tagName == "" || tagName == nil {
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidRelease,
 			Job:      name,
 			Message:  "'release' requires 'tag_name'",
 		}}
@@ -339,6 +357,7 @@ func checkEnvironment(name string, job model.Job) []Finding {
 	if (envName == nil || envName == "") && hasURL {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleInvalidEnvironment,
 			Job:      name,
 			Message:  "'environment.url' requires 'environment.name' to be set",
 		})
@@ -346,6 +365,7 @@ func checkEnvironment(name string, job model.Job) []Finding {
 	if action, ok := m["action"].(string); ok && !validEnvironmentAction[action] {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleInvalidEnvironment,
 			Job:      name,
 			Message:  fmt.Sprintf("'environment.action' has invalid value %q; valid: start, stop, prepare, verify, access", action),
 		})
@@ -365,6 +385,7 @@ func checkArtifacts(name string, job model.Job) []Finding {
 	if w, ok := m["when"].(string); ok && !validArtifactsWhen[w] {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleInvalidArtifacts,
 			Job:      name,
 			Message:  fmt.Sprintf("'artifacts.when' has invalid value %q; valid: on_success, on_failure, always", w),
 		})
@@ -374,6 +395,7 @@ func checkArtifacts(name string, job model.Job) []Finding {
 		if paths == nil {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidArtifacts,
 				Job:      name,
 				Message:  "'artifacts.expose_as' requires 'artifacts.paths'",
 			})
@@ -392,6 +414,7 @@ func checkArtifacts(name string, job model.Job) []Finding {
 			if !found {
 				findings = append(findings, Finding{
 					Severity: Warning,
+					Rule:     RulePagesPublic,
 					Job:      name,
 					Message:  "the 'pages' job should include 'public' in 'artifacts.paths' for GitLab Pages to deploy",
 				})
@@ -421,6 +444,7 @@ func checkCache(name string, job model.Job) []Finding {
 		if w, ok := m["when"].(string); ok && !validCacheWhen[w] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidCache,
 				Job:      name,
 				Message:  fmt.Sprintf("'cache.when' has invalid value %q; valid: on_success, on_failure, always", w),
 			})
@@ -428,6 +452,7 @@ func checkCache(name string, job model.Job) []Finding {
 		if p, ok := m["policy"].(string); ok && !validCachePolicy[p] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidCache,
 				Job:      name,
 				Message:  fmt.Sprintf("'cache.policy' has invalid value %q; valid: pull, push, pull-push", p),
 			})
@@ -442,6 +467,7 @@ func checkRules(name string, job model.Job) []Finding {
 		if rule.When != "" && !validRuleWhen[rule.When] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidRulesWhen,
 				Job:      name,
 				Message:  fmt.Sprintf("rules[%d].when has invalid value %q; valid: on_success, on_failure, always, manual, delayed, never", i, rule.When),
 			})
@@ -462,6 +488,7 @@ func checkImage(name string, job model.Job) []Finding {
 	if imgName == nil || imgName == "" {
 		return []Finding{{
 			Severity: Error,
+			Rule:     RuleInvalidImage,
 			Job:      name,
 			Message:  "'image' map form requires a 'name' key",
 		}}
@@ -489,6 +516,7 @@ func checkInherit(name string, job model.Job) []Finding {
 		default:
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleInvalidInherit,
 				Job:      name,
 				Message:  fmt.Sprintf("'inherit.%s' must be a boolean or a list of names", key),
 			})

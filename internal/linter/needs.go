@@ -46,6 +46,7 @@ func checkNeeds(p *model.Pipeline) []Finding {
 				}
 				findings = append(findings, Finding{
 					Severity: sev,
+					Rule:     RuleNeedsUnknown,
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
@@ -63,6 +64,7 @@ func checkNeeds(p *model.Pipeline) []Finding {
 				if neededHasStage && neededStageIdx > jobStageIdx {
 					findings = append(findings, Finding{
 						Severity: Error,
+						Rule:     RuleNeedsStageOrder,
 						Job:      name,
 						File:     job.File,
 						Line:     job.Line,
@@ -124,6 +126,7 @@ func detectNeedsCycles(graph map[string][]string, jobs map[string]model.Job) []F
 				j := jobs[name]
 				findings = append(findings, Finding{
 					Severity: Error,
+					Rule:     RuleNeedsCycle,
 					Job:      name,
 					File:     j.File,
 					Line:     j.Line,

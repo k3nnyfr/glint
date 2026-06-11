@@ -23,6 +23,7 @@ func checkDependencies(p *model.Pipeline) []Finding {
 			if !exists {
 				findings = append(findings, Finding{
 					Severity: Error,
+					Rule:     RuleUnknownDependency,
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
@@ -35,6 +36,7 @@ func checkDependencies(p *model.Pipeline) []Finding {
 				if depHasStage && depIdx >= jobStageIdx {
 					findings = append(findings, Finding{
 						Severity: Error,
+						Rule:     RuleDependencyStage,
 						Job:      name,
 						File:     job.File,
 						Line:     job.Line,

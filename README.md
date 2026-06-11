@@ -245,63 +245,58 @@ OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
 
 ## Lint rules
 
+Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filter output or reference a specific check in documentation.
+
 ### Pipeline-level
 
-| Severity | Rule |
-|----------|------|
-| ERROR | `workflow.rules[*].when` is not `always` or `never` |
-| WARNING | No `stages` defined (GitLab falls back to default stages) |
+| ID | Severity | Rule |
+|----|----------|------|
+| GL002 | ERROR | `workflow.rules[*].when` is not `always` or `never` |
+| GL001 | WARNING | No `stages` defined (GitLab falls back to default stages) |
 
 ### Job-level — structure
 
-| Severity | Rule |
-|----------|------|
-| ERROR | Job is missing required `script` (or `run`) — non-trigger, non-template jobs |
-| ERROR | Job references a `stage` not declared in `stages` |
-| ERROR | `only` and `rules` used together on the same job |
-| ERROR | `except` and `rules` used together on the same job |
-| WARNING | `only`/`except` used (deprecated, prefer `rules`) |
+| ID | Severity | Rule |
+|----|----------|------|
+| GL003 | ERROR | Job is missing required `script` (or `run`) — non-trigger, non-template jobs |
+| GL004 | ERROR | Job references a `stage` not declared in `stages` |
+| GL005 | ERROR | `only` and `rules` used together on the same job |
+| GL006 | ERROR | `except` and `rules` used together on the same job |
+| GL007 | WARNING | `only`/`except` used (deprecated, prefer `rules`) |
 
 ### Job-level — keyword constraints
 
-| Severity | Rule |
-|----------|------|
-| ERROR | `when` is not one of `on_success`, `on_failure`, `always`, `manual`, `delayed`, `never` |
-| ERROR | `when: delayed` without `start_in` |
-| ERROR | `start_in` set but `when` is not `delayed` |
-| ERROR | `parallel` integer not in range 2–200 |
-| ERROR | `parallel` map form missing `matrix` key |
-| ERROR | `retry` integer not in range 0–2 |
-| ERROR | `retry.max` not in range 0–2 |
-| ERROR | `retry.when` contains an invalid failure type |
-| ERROR | `allow_failure` is not a boolean or a map with `exit_codes` |
-| ERROR | `interruptible` is not a boolean |
-| ERROR | `trigger` job also has `script` |
-| ERROR | `trigger` map missing `project` or `include` |
-| ERROR | `coverage` is not a regex pattern wrapped in `/` |
-| ERROR | `release` missing required `tag_name` |
-| ERROR | `environment.url` set without `environment.name` |
-| ERROR | `environment.action` is not one of `start`, `stop`, `prepare`, `verify`, `access` |
-| ERROR | `artifacts.when` is not `on_success`, `on_failure`, or `always` |
-| ERROR | `artifacts.expose_as` set without `artifacts.paths` |
-| ERROR | `cache.when` is not `on_success`, `on_failure`, or `always` |
-| ERROR | `cache.policy` is not `pull`, `push`, or `pull-push` |
-| ERROR | `rules[*].when` is not one of the valid `when` values |
-| ERROR | `image` map form missing `name` key |
-| ERROR | `inherit.default` / `inherit.variables` is not a boolean or list |
-| WARNING | `pages` job `artifacts.paths` does not include `public` |
+| ID | Severity | Rule |
+|----|----------|------|
+| GL008 | ERROR | `when` is not one of `on_success`, `on_failure`, `always`, `manual`, `delayed`, `never` |
+| GL009 | ERROR | `when: delayed` without `start_in` |
+| GL010 | ERROR | `start_in` set but `when` is not `delayed` |
+| GL011 | ERROR | `parallel` integer not in range 2–200, or map form missing `matrix` key |
+| GL012 | ERROR | `retry` integer not in range 0–2, or `retry.max` out of range |
+| GL013 | ERROR | `retry.when` contains an unrecognised failure type |
+| GL014 | ERROR | `allow_failure` is not a boolean or a map with `exit_codes` |
+| GL015 | ERROR | `interruptible` is not a boolean |
+| GL016 | ERROR | `trigger` job also has `script` |
+| GL017 | ERROR | `trigger` map missing `project` or `include` |
+| GL018 | ERROR | `coverage` is not a regex pattern wrapped in `/` |
+| GL019 | ERROR | `release` missing required `tag_name`, or is not a map |
+| GL020 | ERROR | `environment.url` set without `environment.name`, or invalid `environment.action` |
+| GL021 | ERROR | `artifacts.when` invalid, or `artifacts.expose_as` set without `artifacts.paths` |
+| GL022 | WARNING | `pages` job `artifacts.paths` does not include `public` |
+| GL023 | ERROR | `cache.when` or `cache.policy` has an invalid value |
+| GL024 | ERROR | `rules[*].when` is not one of the valid `when` values |
+| GL025 | ERROR | `image` map form missing `name` key |
+| GL026 | ERROR | `inherit.default` / `inherit.variables` is not a boolean or list |
 
 ### Cross-job graph
 
-| Severity | Rule |
-|----------|------|
-| ERROR | `needs:` references a job that does not exist |
-| ERROR | `needs:` references a job in a later stage |
-| ERROR | Circular dependency detected in `needs:` graph |
-| ERROR | `dependencies:` references a job that does not exist |
-| ERROR | `dependencies:` references a job in the same or a later stage |
-| WARNING | `extends:` references an unknown base job (resolver warning; extends chain skipped for that job) |
-| ERROR | Cycle detected in `extends:` graph |
+| ID | Severity | Rule |
+|----|----------|------|
+| GL027 | ERROR/WARNING | `needs:` references a job that does not exist (WARNING when `optional: true`) |
+| GL028 | ERROR | `needs:` references a job in a later stage |
+| GL029 | ERROR | Circular dependency detected in `needs:` graph |
+| GL030 | ERROR | `dependencies:` references a job that does not exist |
+| GL031 | ERROR | `dependencies:` references a job in the same or a later stage |
 
 ### Hidden jobs (templates)
 

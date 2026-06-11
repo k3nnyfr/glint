@@ -16,6 +16,7 @@ const (
 
 type Finding struct {
 	Severity Severity
+	Rule     string // stable rule ID, e.g. "GL003" — see rules.go
 	Job      string // empty for pipeline-level findings
 	File     string // source file where the finding originates
 	Line     int    // line number in File (0 = unknown)
@@ -31,11 +32,15 @@ func (f Finding) String() string {
 			loc = fmt.Sprintf(" (%s)", f.File)
 		}
 	}
-	if f.Job != "" {
-		return fmt.Sprintf("[%s] job %q%s: %s", f.Severity, f.Job, loc, f.Message)
+	ruleStr := ""
+	if f.Rule != "" {
+		ruleStr = " " + f.Rule
 	}
-	if loc != "" {
-		return fmt.Sprintf("[%s]%s: %s", f.Severity, loc, f.Message)
+	if f.Job != "" {
+		return fmt.Sprintf("[%s] job %q%s%s: %s", f.Severity, f.Job, loc, ruleStr, f.Message)
+	}
+	if loc != "" || ruleStr != "" {
+		return fmt.Sprintf("[%s]%s%s: %s", f.Severity, loc, ruleStr, f.Message)
 	}
 	return fmt.Sprintf("[%s] %s", f.Severity, f.Message)
 }
@@ -56,6 +61,7 @@ func checkStages(p *model.Pipeline) []Finding {
 	if len(p.Stages) == 0 {
 		findings = append(findings, Finding{
 			Severity: Warning,
+			Rule:     RuleNoStages,
 			File:     p.SourceFile,
 			Message:  "no stages defined; GitLab will use default stages (build, test, deploy)",
 		})
@@ -72,6 +78,7 @@ func checkWorkflow(p *model.Pipeline) []Finding {
 		if rule.When != "" && !validWorkflowRuleWhen[rule.When] {
 			findings = append(findings, Finding{
 				Severity: Error,
+				Rule:     RuleWorkflowWhen,
 				File:     p.SourceFile,
 				Message:  fmt.Sprintf("workflow.rules[%d].when has invalid value %q; valid: always, never", i, rule.When),
 			})
@@ -113,6 +120,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 		}
 		findings = append(findings, Finding{
 			Severity: sev,
+			Rule:     RuleMissingScript,
 			Job:      name,
 			Message:  "missing required field 'script' (or 'run')",
 		})
@@ -124,6 +132,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	if job.Stage != "" && !strings.Contains(job.Stage, "$[[") && len(stageSet) > 0 && !stageSet[job.Stage] {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleUnknownStage,
 			Job:      name,
 			Message:  fmt.Sprintf("stage %q is not defined in 'stages'", job.Stage),
 		})
@@ -133,6 +142,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	if job.Only != nil && len(job.Rules) > 0 {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleOnlyRulesConflict,
 			Job:      name,
 			Message:  "'only' and 'rules' cannot be used together",
 		})
@@ -142,6 +152,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	if job.Except != nil && len(job.Rules) > 0 {
 		findings = append(findings, Finding{
 			Severity: Error,
+			Rule:     RuleExceptRulesConflict,
 			Job:      name,
 			Message:  "'except' and 'rules' cannot be used together",
 		})
@@ -151,6 +162,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	if job.Only != nil || job.Except != nil {
 		findings = append(findings, Finding{
 			Severity: Warning,
+			Rule:     RuleDeprecatedOnly,
 			Job:      name,
 			Message:  "'only'/'except' are deprecated; prefer 'rules'",
 		})
