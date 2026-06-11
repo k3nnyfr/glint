@@ -1,7 +1,13 @@
-# glint
+<p align="center">
+  <img src="assets/glint-logo.png" alt="glint logo" width="220" />
+</p>
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue.svg)](CHANGELOG.md)
+<h1 align="center">glint</h1>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.0-blue.svg" alt="Release"></a>
+</p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
 
