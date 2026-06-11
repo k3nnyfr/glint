@@ -4,7 +4,7 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0
+## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11
 
 Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
 
@@ -26,6 +26,10 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
 - ✓ **Expression evaluator: bare `true` / `false` keywords** — treated as the strings `"true"` / `"false"` matching GitLab CI's own behaviour; `$GATEWAY_ENABLED == true` now evaluates correctly.
 - ✓ **Expression evaluator: integer literals** — `$COUNT == 4`, `$ENABLED == 1`, `$DISABLED == 0` compare as decimal strings.
 
+~~**Implicit default context**~~ — ✓ shipped v0.2.11; `glint check` and `glint graph` default to `--branch main --source push` when no context flag is given, so `rules:if:` expressions are always evaluated out of the box.
+
+~~**`--list-vars` debug flag**~~ — ✓ shipped v0.2.11; prints sorted `KEY=VALUE` of all collected variables (pipeline YAML + included files + workflow-rule union + effective context) to stderr.
+
 **Remaining work**
 
 - **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table:
@@ -41,7 +45,7 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
 
 The current rule set covers the most common sources of broken pipelines. These are the gaps most likely to matter in practice.
 
-- **Variable reference validation** — warn when a job references `$VAR` (or `${VAR}`) that is not declared anywhere in `variables:`, `default.variables`, or the job itself
+- ~~**Variable reference validation (GL032)**~~ — ✓ shipped v0.2.11; warns when a `rules:if:` expression references `$VAR` / `${VAR}` not declared anywhere in pipeline YAML; predefined GitLab namespaces (`CI_*`, `GITLAB_*`, …) exempt; variables from included files are also considered
 - **`services:` validation** — map form requires `name`; `alias` must be a valid DNS label
 - **`rules:changes` / `rules:exists`** — warn on glob patterns that can never match (e.g. absolute paths, double `**` on unsupported versions)
 - **`timeout` format** — must be a duration string GitLab understands (`1h 30m`, `90 minutes`, etc.)
@@ -90,9 +94,11 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ---
 
-## Findings quality — ✓ file and line numbers shipped post-v0.2.0
+## Findings quality — ✓ file and line numbers shipped post-v0.2.0; ruff-style format shipped v0.2.11
 
-~~**File and line numbers on findings**~~ — ✓ shipped post-v0.2.0; every `[ERROR]` / `[WARNING]` now includes the source file and exact line of the job key (e.g. `job "deploy" (src/deploy.yml:14): …`). Works across local includes, remote project templates, and fetched component templates.
+~~**File and line numbers on findings**~~ — ✓ shipped post-v0.2.0; every finding includes the source file and exact line of the job key. Works across local includes, remote project templates, and fetched component templates.
+
+~~**Ruff-style output format**~~ — ✓ shipped v0.2.11; findings follow `file:line: RULEID [severity] message` matching the convention used by ruff and other modern linters.
 
 **Remaining improvements**
 
@@ -125,7 +131,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- **Structured rule IDs** — assign a stable short ID to every rule (e.g. `GS001`) so suppression, documentation, and SARIF output are stable across versions
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11
 - **`--explain <rule-id>`** — print the rule description, rationale, and an example fix
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`

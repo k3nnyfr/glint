@@ -24,25 +24,28 @@ type Finding struct {
 }
 
 func (f Finding) String() string {
-	loc := ""
+	var loc string
 	if f.File != "" {
 		if f.Line > 0 {
-			loc = fmt.Sprintf(" (%s:%d)", f.File, f.Line)
+			loc = fmt.Sprintf("%s:%d: ", f.File, f.Line)
 		} else {
-			loc = fmt.Sprintf(" (%s)", f.File)
+			loc = fmt.Sprintf("%s: ", f.File)
 		}
 	}
-	ruleStr := ""
+
+	rule := ""
 	if f.Rule != "" {
-		ruleStr = " " + f.Rule
+		rule = f.Rule + " "
 	}
+
+	sev := "[" + strings.ToLower(string(f.Severity)) + "]"
+
+	msg := f.Message
 	if f.Job != "" {
-		return fmt.Sprintf("[%s] job %q%s%s: %s", f.Severity, f.Job, loc, ruleStr, f.Message)
+		msg = fmt.Sprintf("job %q: %s", f.Job, f.Message)
 	}
-	if loc != "" || ruleStr != "" {
-		return fmt.Sprintf("[%s]%s%s: %s", f.Severity, loc, ruleStr, f.Message)
-	}
-	return fmt.Sprintf("[%s] %s", f.Severity, f.Message)
+
+	return fmt.Sprintf("%s%s%s %s", loc, rule, sev, msg)
 }
 
 // Lint runs all rules against p and returns findings sorted by job name.

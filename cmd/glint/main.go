@@ -64,6 +64,7 @@ func cmdCheck(args []string) {
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
 	source := fs.String("source", "", "set CI_PIPELINE_SOURCE")
+	listVars := fs.Bool("list-vars", false, "print all collected pipeline variables (from root and included files) to stderr, then continue")
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
 	fs.Usage = func() {
@@ -90,6 +91,7 @@ Options:
       --branch <NAME>
           Simulate a branch push. Populates: CI_COMMIT_BRANCH,
           CI_COMMIT_REF_NAME, CI_COMMIT_REF_SLUG, CI_PIPELINE_SOURCE=push.
+          [default: main]
 
       --tag <NAME>
           Simulate a tag push. Populates: CI_COMMIT_TAG, CI_COMMIT_REF_NAME,
@@ -97,24 +99,42 @@ Options:
 
       --source <EVENT>
           Override CI_PIPELINE_SOURCE.
-          [possible values: push, merge_request_event, schedule, web, api]
+          [default: push] [possible values: push, merge_request_event, schedule, web, api]
 
       --var <KEY=VALUE>
           Set or override a CI variable. Takes precedence over --branch, --tag,
           and --source. Repeatable.
 
+      --list-vars
+          Print all pipeline-level variables collected from the root file and
+          every included file (sorted KEY=VALUE) to stderr, then continue
+          normally. Useful for debugging variable resolution and GL032 findings.
+
   -h, --help
           Print help
 
+Note: when none of --branch, --tag, --source, or --var are given, glint
+defaults to --branch main --source push so that rules:if: expressions are
+always evaluated.
+
 Examples:
   glint check .gitlab-ci.yml
-  glint check --branch main .gitlab-ci.yml
+  glint check --branch develop .gitlab-ci.yml
+  glint check --tag v1.0.0 .gitlab-ci.yml
+  glint check --source merge_request_event .gitlab-ci.yml
+  glint check --list-vars .gitlab-ci.yml
   GITLAB_TOKEN=glpat-xxxx glint check .gitlab-ci.yml
   glint check --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
   glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
 `)
 	}
 	_ = fs.Parse(args)
+
+	// Apply implicit defaults when no context flag is given at all.
+	if *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
+		*branch = "main"
+		*source = "push"
+	}
 
 	if fs.NArg() != 1 {
 		fs.Usage()
@@ -148,6 +168,11 @@ Examples:
 	ctx := cicontext.New(*branch, *tag, *source, vars)
 	if !ctx.IsEmpty() {
 		enrichContext(ctx, p)
+	}
+	if *listVars {
+		printVars(p, ctx)
+	}
+	if !ctx.IsEmpty() {
 		printContext(p, ctx)
 	}
 
@@ -222,6 +247,7 @@ Options:
           evaluated state ([skipped] or [manual]; no tag means active).
           Populates: CI_COMMIT_BRANCH, CI_COMMIT_REF_NAME, CI_COMMIT_REF_SLUG,
           CI_PIPELINE_SOURCE=push.
+          [default: main]
 
       --tag <NAME>
           Simulate a tag push. Populates: CI_COMMIT_TAG, CI_COMMIT_REF_NAME,
@@ -229,18 +255,29 @@ Options:
 
       --source <EVENT>
           Override CI_PIPELINE_SOURCE.
-          [possible values: push, merge_request_event, schedule, web, api]
+          [default: push] [possible values: push, merge_request_event, schedule, web, api]
 
       --var <KEY=VALUE>
           Set or override a CI variable. Repeatable.
 
+      --list-vars
+          Print all pipeline-level variables collected from the root file and
+          every included file (sorted KEY=VALUE) to stderr, then continue
+          normally. Useful for debugging variable resolution.
+
   -h, --help
           Print help
+
+Note: when none of --branch, --tag, --source, or --var are given, glint
+defaults to --branch main --source push so that rules:if: expressions are
+always evaluated.
 
 Examples:
   glint graph .gitlab-ci.yml
   glint graph tree .gitlab-ci.yml
-  glint graph tree --branch main .gitlab-ci.yml
+  glint graph tree --branch develop .gitlab-ci.yml
+  glint graph tree --tag v1.0.0 .gitlab-ci.yml
+  glint graph tree --list-vars .gitlab-ci.yml
   glint graph includes .gitlab-ci.yml > includes.mmd
   glint graph pipeline .gitlab-ci.yml
   glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
@@ -250,9 +287,16 @@ Examples:
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
 	source := fs.String("source", "", "set CI_PIPELINE_SOURCE")
+	listVars := fs.Bool("list-vars", false, "print all collected pipeline variables to stderr, then continue")
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
 	_ = fs.Parse(args)
+
+	// Apply implicit defaults when no context flag is given at all.
+	if *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
+		*branch = "main"
+		*source = "push"
+	}
 
 	if fs.NArg() != 1 {
 		fs.Usage()
@@ -270,11 +314,14 @@ Examples:
 
 	rootDir := filepath.Dir(filepath.Clean(path))
 	resolver.ResolveIncludes(p, cfg, rootDir) //nolint:errcheck
-	resolver.Resolve(p)                        //nolint:errcheck
+	resolver.Resolve(p)                       //nolint:errcheck
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
 	if !ctx.IsEmpty() {
 		enrichContext(ctx, p)
+	}
+	if *listVars {
+		printVars(p, ctx)
 	}
 
 	switch mode {
@@ -302,6 +349,71 @@ Examples:
 		}
 		fmt.Fprintln(os.Stderr, outPath)
 	}
+}
+
+// printVars prints the collected variable namespaces to stderr:
+//  1. Pipeline variables — declared in variables: blocks across the root file
+//     and all included files (merged by ResolveIncludes).
+//  2. Workflow-rule variables — union of variables: from every workflow:rules
+//     entry; any one of them may be injected at runtime.
+//  3. Effective context variables — only when ctx is non-empty; shows the
+//     fully merged set visible to job rules:if: after enrichContext.
+func printVars(p *model.Pipeline, ctx *cicontext.Context) {
+	fmt.Fprintln(os.Stderr, "Pipeline variables (YAML, root + includes):")
+	printVarMap(p.Variables)
+
+	if p.Workflow != nil {
+		union := map[string]any{}
+		for _, rule := range p.Workflow.Rules {
+			for k, v := range rule.Variables {
+				union[k] = v
+			}
+		}
+		if len(union) > 0 {
+			fmt.Fprintln(os.Stderr, "Workflow-rule variables (union across all rules):")
+			printVarMap(union)
+		}
+	}
+
+	if !ctx.IsEmpty() {
+		fmt.Fprintln(os.Stderr, "Effective context variables (after workflow + CLI flags):")
+		keys := make([]string, 0, len(ctx.Vars))
+		for k := range ctx.Vars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(os.Stderr, "  %s=%s\n", k, ctx.Vars[k])
+		}
+	}
+}
+
+func printVarMap(m map[string]any) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		fmt.Fprintln(os.Stderr, "  (none)")
+		return
+	}
+	for _, k := range keys {
+		fmt.Fprintf(os.Stderr, "  %s=%s\n", k, varValueString(m[k]))
+	}
+}
+
+func varValueString(v any) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case map[string]any:
+		if s, ok := val["value"].(string); ok {
+			return s
+		}
+		return "(complex)"
+	}
+	return "(complex)"
 }
 
 // enrichContext injects pipeline-level variable defaults and then

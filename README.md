@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.0-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.11-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -216,8 +216,12 @@ Rules without an `if:` clause always match.
 ### Example output
 
 ```
-# Clean pipeline, no context
-OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
+# Clean pipeline (implicit default: --branch main --source push)
+Context: branch=main, source=push
+
+Active  (5): build, deploy-staging, test, ...
+
+OK: .gitlab-ci.yml — no issues found (5 job(s), 3 stage(s))
 
 # With --branch develop context
 Context: branch=develop, source=push
@@ -225,7 +229,7 @@ Context: branch=develop, source=push
 Active  (3): build, deploy-staging, test
 Skipped (2): deploy-prod, release-notes
 
-OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
+OK: .gitlab-ci.yml — no issues found (5 job(s), 3 stage(s))
 
 # With --tag v1.0.0 context
 Context: tag=v1.0.0, source=push
@@ -233,12 +237,12 @@ Context: tag=v1.0.0, source=push
 Active  (4): build, deploy-prod, release-notes, test
 Skipped (1): deploy-staging
 
-OK: .gitlab-ci.yml — no issues found (5 jobs, 3 stages)
+OK: .gitlab-ci.yml — no issues found (5 job(s), 3 stage(s))
 
 # Pipeline with issues
-[ERROR] job "deploy": stage "production" is not defined in 'stages'
-[ERROR] job "test": needs unknown job "build-app"
-[WARNING] job "old-job": 'only'/'except' are deprecated; prefer 'rules'
+.gitlab-ci.yml:14: GL004 [error] job "deploy": stage "production" is not defined in 'stages'
+.gitlab-ci.yml:22: GL027 [error] job "test": needs unknown job "build-app"
+.gitlab-ci.yml:31: GL007 [warning] job "old-job": 'only'/'except' are deprecated; prefer 'rules'
 
 3 finding(s): 2 error(s)
 ```
