@@ -55,9 +55,7 @@ func (b *treeBuilder) nextID() string {
 
 func (b *treeBuilder) buildChildren(parent *treeNode, rawIncludes []any) {
 	for _, entry := range rawIncludes {
-		for _, child := range b.parseEntry(entry) {
-			parent.children = append(parent.children, child)
-		}
+		parent.children = append(parent.children, b.parseEntry(entry)...)
 	}
 }
 

@@ -352,7 +352,7 @@ func checkEnvironment(name string, job model.Job) []Finding {
 		return nil
 	}
 	var findings []Finding
-	envName, _ := m["name"]
+	envName := m["name"]
 	_, hasURL := m["url"]
 	if (envName == nil || envName == "") && hasURL {
 		findings = append(findings, Finding{
@@ -391,7 +391,7 @@ func checkArtifacts(name string, job model.Job) []Finding {
 		})
 	}
 	if _, hasExposeAs := m["expose_as"]; hasExposeAs {
-		paths, _ := m["paths"]
+		paths := m["paths"]
 		if paths == nil {
 			findings = append(findings, Finding{
 				Severity: Error,
@@ -484,7 +484,7 @@ func checkImage(name string, job model.Job) []Finding {
 	if !ok {
 		return nil // String form is valid.
 	}
-	imgName, _ := m["name"]
+	imgName := m["name"]
 	if imgName == nil || imgName == "" {
 		return []Finding{{
 			Severity: Error,

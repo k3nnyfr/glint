@@ -326,8 +326,9 @@ func includeFiles(entry map[string]any) []string {
 	return nil
 }
 
-// mergeIncluded copies jobs and stages from src into dst.
-// dst (the main pipeline) always wins when a key already exists.
+// mergeIncluded copies jobs, stages, and variables from src into dst.
+// dst (the main pipeline) always wins when a key already exists — this matches
+// GitLab's precedence rule where root-pipeline values override included templates.
 func mergeIncluded(dst, src *model.Pipeline) {
 	stageSet := make(map[string]bool, len(dst.Stages))
 	for _, s := range dst.Stages {
@@ -345,6 +346,18 @@ func mergeIncluded(dst, src *model.Pipeline) {
 			dst.Jobs[name] = job
 			if raw, ok := src.RawJobs[name]; ok {
 				dst.RawJobs[name] = raw
+			}
+		}
+	}
+
+	// Merge pipeline-level variables: dst wins on conflict (root overrides includes).
+	if len(src.Variables) > 0 {
+		if dst.Variables == nil {
+			dst.Variables = make(map[string]any, len(src.Variables))
+		}
+		for k, v := range src.Variables {
+			if _, exists := dst.Variables[k]; !exists {
+				dst.Variables[k] = v
 			}
 		}
 	}

@@ -1,0 +1,6 @@
+---
+# Included by variable_refs_included.yml — declares a pipeline-level variable
+# that the parent pipeline's jobs reference in rules:if: expressions.
+
+variables:
+  TEMPLATE_VAR: "enabled"

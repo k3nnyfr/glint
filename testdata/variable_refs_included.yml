@@ -1,0 +1,25 @@
+---
+# variable_refs_included.yml
+# GL032 must NOT fire for variables declared in an included file.
+# The included file (variable_refs_included_template.yml) declares TEMPLATE_VAR.
+# Expected: exits 0 (no errors; no GL032 warnings).
+
+stages:
+  - build
+
+include:
+  - local: /variable_refs_included_template.yml
+
+build:
+  stage: build
+  script: make build
+  rules:
+    # TEMPLATE_VAR comes from the included file — GL032 must not fire.
+    - if: '$TEMPLATE_VAR == "enabled"'
+      when: on_success
+    # ROOT_VAR is declared in this file — GL032 must not fire.
+    - if: '$ROOT_VAR == "yes"'
+      when: manual
+
+variables:
+  ROOT_VAR: "yes"

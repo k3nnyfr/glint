@@ -14,7 +14,7 @@ import (
 // pipeline that is valid on GitLab) produces no Error findings.
 // These files exercise local include resolution and multi-level extends chains.
 func TestSambaCI(t *testing.T) {
-	entryPoint := "../../samba-testdata/.gitlab-ci.yml"
+	entryPoint := "../../testdata/samba/.gitlab-ci.yml"
 
 	p, err := model.Parse(entryPoint)
 	if err != nil {
@@ -51,9 +51,9 @@ func TestSambaCIEntryFiles(t *testing.T) {
 		name string
 		path string
 	}{
-		{"default", "../../samba-testdata/.gitlab-ci.yml"},
-		{"coverage", "../../samba-testdata/.gitlab-ci-coverage.yml"},
-		{"private", "../../samba-testdata/.gitlab-ci-private.yml"},
+		{"default", "../../testdata/samba/.gitlab-ci.yml"},
+		{"coverage", "../../testdata/samba/.gitlab-ci-coverage.yml"},
+		{"private", "../../testdata/samba/.gitlab-ci-private.yml"},
 	}
 
 	for _, tc := range entryPoints {

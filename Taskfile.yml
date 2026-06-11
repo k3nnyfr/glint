@@ -75,21 +75,28 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/variable_refs.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci.yml
+      - cmd: ./{{.BINARY}} check testdata/variable_refs_included.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-coverage.yml
+      - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci.yml
         ignore_error: false
-      - cmd: ./{{.BINARY}} check samba-testdata/.gitlab-ci-private.yml
+      - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-coverage.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-private.yml
         ignore_error: false
 
   lint-go:
     desc: Run go vet on all packages
     cmd: "{{.GO}} vet ./..."
 
+  lint-static:
+    desc: Run staticcheck on all packages
+    cmd: "{{.GO}} tool staticcheck ./..."
+
   ci:
-    desc: Full CI check — vet, test, build, validate
+    desc: Full CI check — vet, staticcheck, test, build, validate
     cmds:
       - task: lint-go
+      - task: lint-static
       - task: test
       - task: build
       - task: validate
