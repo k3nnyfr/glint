@@ -103,6 +103,20 @@ func TestEvalIf(t *testing.T) {
 		{"var regex rhs plain permissive", `$CI_COMMIT_BRANCH =~ $PLAIN_PATTERN`, true},
 		{"var regex rhs not match", `$CI_COMMIT_BRANCH !~ $BRANCH_PATTERN`, false},
 
+		// ── Bare true/false keywords ─────────────────────────────────────────
+		// GitLab CI treats true/false as the string values "true"/"false".
+		{"bare true match", `$CI_PIPELINE_SOURCE == true`, false},       // "push" != "true"
+		{"bare false match", `$CI_COMMIT_TAG == false`, false},           // "" != "false"
+		{"bare true var set to true", `$DEPLOY_ENV == true`, false},      // "staging" != "true"
+		{"bare false neq", `$CI_COMMIT_BRANCH != false`, true},           // "develop" != "false"
+		{"bare true in compound", `$CI_COMMIT_BRANCH != null && $CI_COMMIT_TAG == false`, false},
+
+		// ── Integer literals ──────────────────────────────────────────────────
+		// Compared as decimal strings (GitLab CI converts integers to strings).
+		{"int eq match", `$CI_PIPELINE_SOURCE != 0`, true},  // "push" != "0"
+		{"int eq no match", `$CI_COMMIT_TAG == 0`, false},    // "" != "0"
+		{"int in compound", `$CI_COMMIT_BRANCH != null && $CI_COMMIT_BRANCH != 0`, true},
+
 		// ── Permissive fallback ───────────────────────────────────────────────
 		{"unparseable returns true", `this is not valid syntax %%%`, true},
 		{"empty expr returns true", ``, true},

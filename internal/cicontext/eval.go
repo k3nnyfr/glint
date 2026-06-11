@@ -231,8 +231,10 @@ func (p *exprParser) parseRegexRHS() (pat string, ok bool, permissive bool) {
 	return "", false, false
 }
 
-// parseValue reads $VAR, ${VAR}, "string", 'string', or null.
-// null and undefined variables both produce an empty string.
+// parseValue reads $VAR, ${VAR}, "string", 'string', null, true, false, or an
+// integer literal. null and undefined variables both produce an empty string.
+// true/false and integers produce their string representations (GitLab CI
+// compares all values as strings).
 func (p *exprParser) parseValue() (string, bool) {
 	p.skipWS()
 
@@ -254,17 +256,32 @@ func (p *exprParser) parseValue() (string, bool) {
 		return p.vars(name), true
 	}
 
-	// null keyword — must not be a prefix of a longer identifier.
-	if p.startsWith("null") {
-		end := p.pos + 4
-		if end >= len(p.s) || !isIdentByte(p.s[end]) {
-			p.pos += 4
-			return "", true // null → empty string
+	// Keywords and string literals must not be prefixes of longer identifiers.
+	for _, kw := range []struct{ tok, val string }{
+		{"null", ""},
+		{"true", "true"},
+		{"false", "false"},
+	} {
+		if p.startsWith(kw.tok) {
+			end := p.pos + len(kw.tok)
+			if end >= len(p.s) || !isIdentByte(p.s[end]) {
+				p.pos += len(kw.tok)
+				return kw.val, true
+			}
 		}
 	}
 
 	if p.peek() == '"' || p.peek() == '\'' {
 		return p.parseStringLiteral()
+	}
+
+	// Integer literal — returned as its decimal string for string comparison.
+	if p.peek() >= '0' && p.peek() <= '9' {
+		start := p.pos
+		for p.pos < len(p.s) && p.s[p.pos] >= '0' && p.s[p.pos] <= '9' {
+			p.pos++
+		}
+		return p.s[start:p.pos], true
 	}
 
 	return "", false
