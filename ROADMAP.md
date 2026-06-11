@@ -4,7 +4,7 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation — ✓ single-context shipped in v0.2.0
+## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0
 
 Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
 
@@ -16,6 +16,16 @@ glint check --source merge_request_event --var CI_MERGE_REQUEST_TARGET_BRANCH_NA
 glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] / [manual]
 ```
 
+**Shipped post-v0.2.0 (unreleased)**
+
+- ✓ **`workflow:rules:variables:` propagation** — variables defined on the matching `workflow:rules:` entry are injected into the evaluation context before job `rules:if:` expressions are evaluated. Pipeline-level `variables:` defaults are also available. Priority chain (highest wins): `--var` > shortcuts > workflow-rule vars > pipeline defaults.
+- ✓ **Expression evaluator: multi-line expressions** — newlines in block-scalar and folded YAML `if:` values are now treated as whitespace; `||` / `&&` on a continuation line evaluate correctly.
+- ✓ **Expression evaluator: `${VAR}` curly-brace syntax** — `${CI_COMMIT_BRANCH}` is equivalent to `$CI_COMMIT_BRANCH` everywhere.
+- ✓ **Expression evaluator: regex flags** — `/pattern/i`, `/pattern/m`, `/pattern/s` are now supported; `i` maps to `(?i)` in Go's regexp.
+- ✓ **Expression evaluator: variable as regex RHS** — `$BRANCH =~ $PATTERN` where `$PATTERN` holds a `/regex/` string is evaluated correctly.
+- ✓ **Expression evaluator: bare `true` / `false` keywords** — treated as the strings `"true"` / `"false"` matching GitLab CI's own behaviour; `$GATEWAY_ENABLED == true` now evaluates correctly.
+- ✓ **Expression evaluator: integer literals** — `$COUNT == 4`, `$ENABLED == 1`, `$DISABLED == 0` compare as decimal strings.
+
 **Remaining work**
 
 - **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table:
@@ -23,7 +33,7 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
   glint check --context branch=main --context branch=develop --context tag=v1.0.0 .gitlab-ci.yml
   ```
 - **Context-scoped linting** — skip `needs:`/`dependencies:` cross-checks for jobs that are statically unreachable in the given context
-- **`rules:changes:` evaluation** — path glob evaluation against the local git tree (expression evaluator priority 5)
+- **`rules:changes:` evaluation** — path glob evaluation against the local git tree
 
 ---
 
@@ -47,7 +57,7 @@ The current rule set covers the most common sources of broken pipelines. These a
 ## Include resolution
 
 - ~~**`include: local:`** full resolution~~ — ✓ shipped in v0.2.0; local files are read from disk, recursively resolved, and merged before linting
-- **`include: remote:`** (URL) — fetch and merge plain HTTP/HTTPS URLs (no auth required)
+- ~~**`include: remote:`** (URL)~~ — ✓ shipped post-v0.2.0; plain HTTPS URLs are fetched (unauthenticated), parsed, and merged; sub-includes are resolved recursively; unreachable URLs emit `[WARNING]` and linting continues
 - **Recursive include depth limit** — guard against include cycles across files
 - **Offline mode / cache** — persist fetched remote templates to a local cache directory; `--offline` flag to skip network calls and use only cached copies
 - **`include: inputs:`** — substitute CI component input values into fetched templates before merging, so component-scoped jobs get their correct `stage:` and keyword values
@@ -70,12 +80,25 @@ Right now the only output is plain-text findings. Structured output enables inte
 The SVG renderer and terminal tree cover the basic layout. These would bring it closer to GitLab's full interactive view.
 
 - ~~**Terminal job tree**~~ — ✓ shipped in v0.2.0 as `glint graph tree`; stages as branches, jobs as leaves, context-aware annotations
+- ~~**`glint graph includes` shows jobs per file**~~ — ✓ shipped post-v0.2.0; each include node shows the jobs it defines as dashed-arrow rounded nodes in a distinct style
 - **Multi-job connector accuracy** — draw one connector per job pair rather than one per stage pair in classic mode, so pipelines with uneven columns look correct
 - **Job tooltip / detail panel** — embed a hidden `<title>` and `<desc>` per chip so SVG viewers show `stage`, `when`, `image`, and `needs` on hover
 - **`when: on_failure` visual distinction** — dashed border or distinct icon for failure-path jobs
 - **Blocked / skipped state colouring** — grey out jobs that are statically unreachable given known `rules:` conditions
 - **Interactive HTML output** — self-contained `.html` file with pan/zoom and a job-detail sidebar; no external dependencies
 - **Mermaid pipeline output** — keep `pipeline.go` but wire it up through `--graph pipeline --format mermaid` for users who want to paste into mermaid.live
+
+---
+
+## Findings quality — ✓ file and line numbers shipped post-v0.2.0
+
+~~**File and line numbers on findings**~~ — ✓ shipped post-v0.2.0; every `[ERROR]` / `[WARNING]` now includes the source file and exact line of the job key (e.g. `job "deploy" (src/deploy.yml:14): …`). Works across local includes, remote project templates, and fetched component templates.
+
+**Remaining improvements**
+
+- ~~**`needs: optional: true` false-positive errors**~~ — ✓ shipped post-v0.2.0; optional missing needs are downgraded to `[WARNING]`
+- ~~**`extends:` jobs with missing script false errors**~~ — ✓ shipped post-v0.2.0; jobs using `extends:` that have no `script` after resolution emit `[WARNING]` (the script may come from an unfetchable remote base)
+- **`rules:if:` static reachability** — report when a job's entire `rules:` block can never evaluate to `when: on_success` given the declared pipeline variables (pure static, no context required)
 
 ---
 
