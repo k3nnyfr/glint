@@ -41,6 +41,8 @@ tasks:
         ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/keywords_invalid.yml
         ignore_error: true
+      - cmd: ./{{.BINARY}} check testdata/includes_remote.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/includes_project.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/includes_component.yml

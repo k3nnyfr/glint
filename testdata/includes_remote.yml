@@ -1,0 +1,14 @@
+---
+# Exercises include: remote: URL fetching and sub-include recursion.
+# The remote file is a real public GitLab CI template; it may contain its own
+# includes which should also be resolved. Exit code is 0 (warnings allowed).
+stages:
+  - test
+
+include:
+  - remote: https://gitlab.com/gitlab-org/gitlab/-/raw/master/lib/gitlab/ci/templates/Bash.gitlab-ci.yml
+
+local-job:
+  stage: test
+  script:
+    - echo "local job alongside remote include"

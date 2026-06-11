@@ -15,6 +15,8 @@ This project uses [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- **`include: remote:` URL includes are now fetched and merged** — glint fetches plain HTTPS URLs in `include: remote:` entries (no authentication), parses the resulting YAML, merges its jobs into the pipeline, and recursively resolves any sub-includes the remote file itself declares. Unreachable or unparseable URLs emit a `[WARNING]` and lint continues on the rest of the pipeline. The `glint graph includes` command now expands remote nodes with their jobs and sub-include tree, matching the behaviour of local and project includes.
+
 - **`needs: optional: true` downgraded to warning** — a `needs:` entry that carries `optional: true` and references a job not present in the pipeline now emits `[WARNING]` instead of `[ERROR]`. GitLab CI silently skips such dependencies at runtime (the job is absent when its include was not triggered), so the finding was a false positive. Non-optional missing needs remain errors. Optional missing deps are also excluded from the cycle-detection graph.
 
 - **`extends:` jobs with missing script downgraded to warning** — a job that declares `extends:` but has no `script` after resolution now emits `[WARNING]` instead of `[ERROR]`. The script may legitimately come from a base job in a remote include that could not be fetched at lint time (e.g. no token configured).

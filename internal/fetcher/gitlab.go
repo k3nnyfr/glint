@@ -142,6 +142,24 @@ func (cfg GitLabConfig) FetchFile(project, filePath, ref string) ([]byte, error)
 	return body, nil
 }
 
+// FetchURL downloads the content at a plain HTTPS URL without authentication.
+// Used for include: remote: entries which are public by definition.
+func FetchURL(rawURL string) ([]byte, error) {
+	resp, err := http.Get(rawURL) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("GET %s: %w", rawURL, err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET %s: status %d", rawURL, resp.StatusCode)
+	}
+	return body, nil
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
 		if v != "" {

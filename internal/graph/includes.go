@@ -114,7 +114,9 @@ func (b *treeBuilder) parseMap(m map[string]any) []*treeNode {
 		return []*treeNode{node}
 	}
 	if remote, ok := m["remote"].(string); ok {
-		return []*treeNode{{id: b.nextID(), label: "remote:<br>" + mermaidLabel(remote), class: "remote"}}
+		node := &treeNode{id: b.nextID(), label: "remote:<br>" + mermaidLabel(remote), class: "remote"}
+		b.recurseRemote(node, remote)
+		return []*treeNode{node}
 	}
 	if tmpl, ok := m["template"].(string); ok {
 		return []*treeNode{{id: b.nextID(), label: "template:<br>" + mermaidLabel(tmpl), class: "template"}}
@@ -156,6 +158,28 @@ func (b *treeBuilder) recurseProject(node *treeNode, project, filePath, ref stri
 	b.visited[key] = true
 
 	data, err := b.cfg.FetchFile(project, filePath, ref)
+	if err != nil {
+		return
+	}
+	p, err := model.ParseBytes(data)
+	if err != nil {
+		return
+	}
+	node.jobs = jobNames(p)
+	if len(p.Include) == 0 {
+		return
+	}
+	b.buildChildren(node, p.Include)
+}
+
+func (b *treeBuilder) recurseRemote(node *treeNode, rawURL string) {
+	key := "remote:" + rawURL
+	if b.visited[key] {
+		return
+	}
+	b.visited[key] = true
+
+	data, err := fetcher.FetchURL(rawURL)
 	if err != nil {
 		return
 	}

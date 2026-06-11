@@ -90,7 +90,14 @@ func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig
 			continue
 		}
 
-		// remote, template — resolved by GitLab at runtime, skip silently.
+		if remote, _ := entry["remote"].(string); remote != "" {
+			w, ew := resolveRemoteInclude(p, remote, cfg, rootDir, visited)
+			warnings = append(warnings, w...)
+			extWarnings = append(extWarnings, ew...)
+			continue
+		}
+
+		// template — resolved by GitLab at runtime, skip silently.
 	}
 	return warnings, extWarnings
 }
@@ -121,6 +128,39 @@ func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabCo
 
 	// Recursively resolve the included file's own includes first, merging
 	// everything into `included` before we merge it into the parent `p`.
+	var warnings []IncludeWarning
+	var extWarnings []ExtendWarning
+	if len(included.Include) > 0 {
+		w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
+		warnings = append(warnings, w...)
+		extWarnings = append(extWarnings, ew...)
+	}
+
+	mergeIncluded(p, included)
+	return warnings, extWarnings
+}
+
+// resolveRemoteInclude fetches a plain HTTPS URL, parses it as CI YAML, and
+// merges it into p. Sub-includes of the fetched file are resolved recursively.
+func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) ([]IncludeWarning, []ExtendWarning) {
+	label := "remote " + rawURL
+
+	if visited[rawURL] {
+		return nil, nil
+	}
+	visited[rawURL] = true
+
+	data, err := fetcher.FetchURL(rawURL)
+	if err != nil {
+		return []IncludeWarning{{Label: label, Err: err}}, nil
+	}
+
+	included, err := model.ParseBytes(data)
+	if err != nil {
+		return []IncludeWarning{{Label: label, Err: fmt.Errorf("parsing YAML: %w", err)}}, nil
+	}
+	included.SetJobOrigin(rawURL)
+
 	var warnings []IncludeWarning
 	var extWarnings []ExtendWarning
 	if len(included.Include) > 0 {
