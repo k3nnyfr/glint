@@ -1,0 +1,57 @@
+---
+# workflow_vars.yml
+# Exercises workflow:rules:variables: injection.
+# The matching workflow rule sets DEPLOY_TARGET; job rules use it.
+#
+# Expected behaviour per context:
+#   (no context)       → all jobs active (no context evaluation)
+#   --branch main      → deploy-prod active, deploy-staging skipped
+#   --branch develop   → deploy-prod skipped, deploy-staging active
+#   --branch feat/x    → deploy-prod skipped, deploy-staging skipped (manual)
+
+stages:
+  - build
+  - deploy
+
+variables:
+  DEPLOY_TARGET:
+    value: ""
+    description: "Deployment target — set by workflow rules"
+
+workflow:
+  rules:
+    - if: "
+        $WORKFLOW = 'gitflow' &&
+        $CI_PIPELINE_SOURCE == /(push|web)/ && 
+        $CI_COMMIT_BRANCH =~ /^us\//
+        "
+      variables:
+        DEPLOY_TARGET: production
+        BUILD: true
+        TEST: true        
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      variables:
+        DEPLOY_TARGET: staging
+    - when: always
+
+build:
+  stage: build
+  script: make build
+  rules:
+    - when: always
+
+deploy-prod:
+  stage: deploy
+  script: make deploy ENV=production
+  rules:
+    - if: '$DEPLOY_TARGET == "production"'
+      when: on_success
+    - when: never
+
+deploy-staging:
+  stage: deploy
+  script: make deploy ENV=staging
+  rules:
+    - if: '$DEPLOY_TARGET == "staging"'
+      when: on_success
+    - when: never
