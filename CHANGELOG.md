@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.14] - 2026-06-13
+
+### Added
+
+- **`--version` / `-v` flag** — `glint --version`, `glint -v`, and `glint version` all print the compiled version string (e.g. `glint v0.2.14`). The version is also shown at the top of every `--help` output (global, `check --help`, `graph --help`). The version is injected at build time via `-ldflags "-X main.version=..."` using `git describe --tags --always --dirty`.
+
+- **Sorted findings output** — `Lint` now returns findings sorted by `(File, Line, Rule)`. All issues from the same source file appear together in ascending line order; pipeline-level findings with no file location sort first. Previously findings were emitted in map-iteration order (non-deterministic).
+
+### Fixed
+
+- **Warning format consistency** — include-resolution warnings, extends-chain warnings, and the workflow non-start warning now use the same ruff-style `path: [warning] message` format as lint findings instead of the old `[WARNING] …` prefix with no file context.
+
+- **Workflow rule permissive evaluation** — workflow `rules:if:` expressions are now evaluated in strict mode: an expression that cannot be fully parsed returns `false` (skip this rule, try the next) instead of `true` (match everything). Previously, a complex or partially-unsupported condition on the first workflow rule would match every context, blocking all subsequent rules and injecting the wrong variables. Job rules retain permissive evaluation (`true` on parse failure) to avoid silently dropping jobs.
+
+- **Single `=` operator in `rules:if:`** — a bare `=` not followed by `=` or `~` is now accepted as an alias for `==`. This is a common mistake in GitLab CI YAML; previously it caused a parse failure and triggered the permissive fallback.
+
+- **Source location lost through `extends:` resolution** — when a job was resolved via `extends:`, the merged definition was re-encoded and re-decoded as a fresh `model.Job` struct, which does not carry `File` or `Line` (they are not YAML keys). Those fields are now explicitly copied back from the original job before replacing it in `p.Jobs`, so extended jobs report the correct source file and line number in findings.
+
 ## [0.2.13] - 2026-06-12
 
 ### Added

@@ -42,7 +42,11 @@ func EvalWorkflow(p *model.Pipeline, ctx *Context) (bool, map[string]string) {
 	}
 	vars := ctx.Get
 	for _, rule := range p.Workflow.Rules {
-		if !ruleIfMatches(rule.If, vars) {
+		// Workflow rules use strict evaluation: an unparseable condition is
+		// treated as no-match so later rules (with valid conditions or a
+		// bare when:) are reached. Permissive-true would cause an early rule
+		// with a complex/invalid condition to block all subsequent rules.
+		if !ruleIfMatchesStrict(rule.If, vars) {
 			continue
 		}
 		when := rule.When
@@ -92,6 +96,13 @@ func ruleIfMatches(ifExpr string, vars func(string) string) bool {
 		return true // no if: condition → rule always matches
 	}
 	return EvalIf(ifExpr, vars)
+}
+
+func ruleIfMatchesStrict(ifExpr string, vars func(string) string) bool {
+	if ifExpr == "" {
+		return true // no if: condition → rule always matches
+	}
+	return EvalIfStrict(ifExpr, vars)
 }
 
 func whenToState(when string) JobState {

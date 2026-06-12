@@ -4,7 +4,7 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11; variable expansion and scalar handling shipped v0.2.13
+## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11; variable expansion and scalar handling shipped v0.2.13; workflow evaluation and output fixes shipped v0.2.14
 
 Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
 
@@ -35,6 +35,15 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
 - ✓ **Variable expansion** — `$VAR` / `${VAR}` references within variable values are expanded after all sources are merged; transitive chains resolve over multiple passes; visible in `--list-vars` effective-context output.
 - ✓ **Non-string scalar variables** — `BUILD: true`, `RETRIES: 3` and similar bare boolean/integer values now render correctly in `--list-vars` and are injected into the evaluation context as string equivalents; previously shown as `(complex)` and silently dropped.
 - ✓ **YAML `\/` escape in double-quoted strings** — regex patterns like `/^us\//` in double-quoted `if:` blocks no longer cause a parse error; the raw bytes are preprocessed before YAML unmarshalling.
+
+**Shipped in v0.2.14**
+
+- ✓ **Workflow rule strict evaluation** — workflow `rules:if:` now uses strict mode (parse failure → skip rule, not match); fixes premature matching that blocked later rules and injected wrong variables.
+- ✓ **Single `=` operator** — `=` is now accepted as an alias for `==` in `rules:if:` expressions, matching common user intent.
+- ✓ **Source location through `extends:` resolution** — `File` and `Line` are now preserved when a job is rebuilt via extends, so findings reference the correct source location.
+- ✓ **Sorted findings output** — findings are sorted by `(File, Line, Rule)`; same-file issues group together in line order.
+- ✓ **Consistent warning format** — all warnings use ruff-style `path: [warning] message` format.
+- ✓ **`--version` / `-v` flag** — prints compiled version; version also shown at the top of every `--help` output.
 
 **Remaining work**
 

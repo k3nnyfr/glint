@@ -120,6 +120,12 @@ func TestEvalIf(t *testing.T) {
 		// ── Permissive fallback ───────────────────────────────────────────────
 		{"unparseable returns true", `this is not valid syntax %%%`, true},
 		{"empty expr returns true", ``, true},
+
+		// ── Single = as alias for == ──────────────────────────────────────────
+		{"single eq match", `$CI_COMMIT_BRANCH = "develop"`, true},
+		{"single eq no match", `$CI_COMMIT_BRANCH = "main"`, false},
+		{"single eq in compound", `$CI_COMMIT_BRANCH = "develop" && $CI_PIPELINE_SOURCE = "push"`, true},
+		{"single eq compound false", `$CI_COMMIT_BRANCH = "main" && $CI_PIPELINE_SOURCE = "push"`, false},
 	}
 
 	for _, tc := range tests {
@@ -127,6 +133,51 @@ func TestEvalIf(t *testing.T) {
 			got := EvalIf(tc.expr, vars)
 			if got != tc.want {
 				t.Errorf("EvalIf(%q) = %v, want %v", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEvalIfStrict(t *testing.T) {
+	vars := func(key string) string {
+		m := map[string]string{
+			"CI_COMMIT_BRANCH":   "develop",
+			"CI_PIPELINE_SOURCE": "push",
+			"WORKFLOW":           "",
+		}
+		return m[key]
+	}
+
+	tests := []struct {
+		name string
+		expr string
+		want bool
+	}{
+		// Parseable expressions behave identically to EvalIf.
+		{"parseable match", `$CI_COMMIT_BRANCH == "develop"`, true},
+		{"parseable no match", `$CI_COMMIT_BRANCH == "main"`, false},
+		{"single eq match", `$CI_COMMIT_BRANCH = "develop"`, true},
+		// Empty expression: ruleIfMatchesStrict handles the empty→true case
+		// before calling EvalIfStrict, so empty falls through to false here.
+		{"empty expr", ``, false},
+
+		// Unparseable expressions return false (strict) instead of true (permissive).
+		{"unparseable returns false", `this is not valid syntax %%%`, false},
+
+		// The key workflow-rule scenario: a complex condition with an
+		// unevaluable sub-expression should not match (strict=false) so that
+		// later workflow rules can be evaluated.
+		{"workflow rule complex no match", `$WORKFLOW = "gitflow" && $CI_PIPELINE_SOURCE == /(push|web)/`, false},
+
+		// Compound with a bad second operand: strict returns false.
+		{"and with bad rhs strict false", `$CI_COMMIT_BRANCH == "develop" && !(((`, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := EvalIfStrict(tc.expr, vars)
+			if got != tc.want {
+				t.Errorf("EvalIfStrict(%q) = %v, want %v", tc.expr, got, tc.want)
 			}
 		})
 	}

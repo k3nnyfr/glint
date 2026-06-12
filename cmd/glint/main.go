@@ -16,6 +16,9 @@ import (
 	"git.k3nny.fr/glint/internal/resolver"
 )
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z".
+var version = "dev"
+
 const globalUsage = `glint: Lint and visualise GitLab CI pipelines locally.
 
 Usage: glint [OPTIONS] <COMMAND>
@@ -25,7 +28,8 @@ Commands:
   graph    Visualise the pipeline as a job tree or Mermaid graph
 
 Options:
-  -h, --help  Print help
+  -h, --help     Print help
+  -v, --version  Print version
 
 For help with a specific command, see: ` + "`glint <command> --help`" + `.
 `
@@ -41,7 +45,10 @@ func main() {
 	case "graph":
 		cmdGraph(os.Args[2:])
 	case "-h", "--help", "help":
+		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, globalUsage)
+	case "-v", "--version", "version":
+		fmt.Printf("glint %s\n", version)
 	default:
 		fmt.Fprintf(os.Stderr, "glint: unknown command %q\n\n%s", os.Args[1], globalUsage)
 		os.Exit(2)
@@ -68,6 +75,7 @@ func cmdCheck(args []string) {
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
 	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Lint a GitLab CI pipeline file.
 
 Resolves local includes and extends chains, then runs all lint rules.
@@ -153,7 +161,7 @@ Examples:
 	rootDir := filepath.Dir(filepath.Clean(path))
 	warnings, _ := resolver.ResolveIncludes(p, cfg, rootDir)
 	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "[WARNING] include %s\n", w)
+		fmt.Fprintf(os.Stderr, "%s: [warning] include %s\n", path, w)
 	}
 
 	extWarnings, err := resolver.Resolve(p)
@@ -162,12 +170,14 @@ Examples:
 		os.Exit(2)
 	}
 	for _, w := range extWarnings {
-		fmt.Fprintf(os.Stderr, "[WARNING] job %q extends unknown job %q; extends chain skipped\n", w.Job, w.Base)
+		fmt.Fprintf(os.Stderr, "%s: [warning] job %q extends unknown job %q; extends chain skipped\n", path, w.Job, w.Base)
 	}
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
 	if !ctx.IsEmpty() {
-		enrichContext(ctx, p)
+		if !enrichContext(ctx, p) {
+			fmt.Fprintf(os.Stderr, "%s: [warning] workflow:rules: pipeline would not start for this context\n", path)
+		}
 	}
 	if *listVars {
 		printVars(p, ctx)
@@ -219,6 +229,7 @@ func cmdGraph(args []string) {
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
 	out := fs.String("out", "glint-out", "output directory for Mermaid graph files (pipeline mode)")
 	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Visualise the pipeline as a job tree and/or Mermaid graph.
 
 Usage: glint graph [MODE] [OPTIONS] <PIPELINE>
@@ -413,22 +424,21 @@ func varValueString(v any) string {
 // enrichContext injects pipeline-level variable defaults and then
 // workflow-rule-generated variables into ctx before job evaluation.
 // Injection respects pinned variables (--branch/--tag/--source/--var always win).
-func enrichContext(ctx *cicontext.Context, p *model.Pipeline) {
+// Returns false when workflow:rules: would prevent the pipeline from starting.
+func enrichContext(ctx *cicontext.Context, p *model.Pipeline) bool {
 	// Pipeline variables: injected as defaults (lowest priority).
 	for k, v := range cicontext.ExtractStringVars(p.Variables) {
 		ctx.Inject(k, v)
 	}
 	// Workflow rules: evaluate to find which rule matches, then inject its variables.
 	runs, ruleVars := cicontext.EvalWorkflow(p, ctx)
-	if !runs {
-		fmt.Fprintln(os.Stderr, "[WARNING] workflow:rules: pipeline would not start for this context")
-	}
 	for k, v := range ruleVars {
 		ctx.Inject(k, v)
 	}
 	// Expand $VAR / ${VAR} references within variable values now that all
 	// sources (pipeline, workflow rules, CLI) have been merged.
 	ctx.ExpandVars()
+	return runs
 }
 
 func printContext(p *model.Pipeline, ctx *cicontext.Context) {

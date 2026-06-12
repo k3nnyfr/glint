@@ -1,7 +1,9 @@
 package linter
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"git.k3nny.fr/glint/internal/model"
@@ -48,7 +50,8 @@ func (f Finding) String() string {
 	return fmt.Sprintf("%s%s%s %s", loc, rule, sev, msg)
 }
 
-// Lint runs all rules against p and returns findings sorted by job name.
+// Lint runs all rules against p and returns findings sorted by (File, Line, Rule).
+// Findings with no File (pipeline-level) sort before file-scoped ones.
 func Lint(p *model.Pipeline) []Finding {
 	var findings []Finding
 	findings = append(findings, checkStages(p)...)
@@ -57,6 +60,15 @@ func Lint(p *model.Pipeline) []Finding {
 	findings = append(findings, checkNeeds(p)...)
 	findings = append(findings, checkDependencies(p)...)
 	findings = append(findings, checkVariableRefs(p)...)
+	slices.SortStableFunc(findings, func(a, b Finding) int {
+		if c := cmp.Compare(a.File, b.File); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.Line, b.Line); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Rule, b.Rule)
+	})
 	return findings
 }
 

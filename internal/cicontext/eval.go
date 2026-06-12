@@ -12,7 +12,7 @@ import (
 //   - Variable references: $VAR_NAME or ${VAR_NAME}
 //   - String literals:     "value" or 'value'
 //   - Null keyword:        null
-//   - Comparison:          == != =~ !~
+//   - Comparison:          == != =~ !~  (single = is accepted as == for user convenience)
 //   - Boolean:             && || !
 //   - Grouping:            ( )
 //   - Regex flags:         /pattern/i (case-insensitive), /pattern/m, /pattern/s
@@ -23,10 +23,21 @@ import (
 // used by GitLab CI. Unsupported or unparseable expressions fall back to true
 // (permissive) so the linter never silently drops jobs it cannot evaluate.
 func EvalIf(expr string, vars func(string) string) bool {
+	return evalIf(expr, vars, true)
+}
+
+// EvalIfStrict is like EvalIf but returns false (instead of true) when the
+// expression cannot be fully parsed. Use for workflow:rules: evaluation where
+// a failed parse should skip to the next rule rather than matching everything.
+func EvalIfStrict(expr string, vars func(string) string) bool {
+	return evalIf(expr, vars, false)
+}
+
+func evalIf(expr string, vars func(string) string, permissive bool) bool {
 	p := &exprParser{s: strings.TrimSpace(expr), vars: vars}
 	result, ok := p.parseOr()
 	if !ok || p.pos < len(p.s) {
-		return true // unparseable → permissive
+		return permissive
 	}
 	return result
 }
@@ -200,6 +211,17 @@ func (p *exprParser) parseComparison() (bool, bool) {
 			return true, true // bad pattern → permissive
 		}
 		return !re.MatchString(leftStr), true
+
+	// Single = not followed by = or ~ — accepted as == (common user mistake;
+	// GitLab CI only supports == but = is frequently written by accident).
+	case p.peek() == '=' && !p.startsWith("==") && !p.startsWith("=~"):
+		p.pos++ // consume '='
+		p.skipWS()
+		rightStr, ok := p.parseValue()
+		if !ok {
+			return false, false
+		}
+		return leftStr == rightStr, true
 	}
 
 	// No operator: variable is truthy when non-empty (defined and non-null).

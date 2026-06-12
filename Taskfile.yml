@@ -3,6 +3,8 @@ version: "3"
 vars:
   BINARY: glint
   GO: /usr/local/go/bin/go
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
 
 tasks:
   default:
@@ -12,7 +14,7 @@ tasks:
   build:
     desc: Build the glint binary
     cmds:
-      - "{{.GO}} build -o {{.BINARY}} ./cmd/glint/..."
+      - "{{.GO}} build -ldflags \"-X main.version={{.VERSION}}\" -o {{.BINARY}} ./cmd/glint/..."
     sources:
       - "**/*.go"
       - go.mod
@@ -112,7 +114,7 @@ tasks:
       - sh: git describe --tags --exact-match
         msg: "Current commit is not tagged — Windows build requires a git tag"
     cmds:
-      - "GOOS=windows GOARCH=amd64 {{.GO}} build -o {{.BINARY}}-{{.TAG}}.exe ./cmd/glint/..."
+      - "GOOS=windows GOARCH=amd64 {{.GO}} build -ldflags \"-X main.version={{.TAG}}\" -o {{.BINARY}}-{{.TAG}}.exe ./cmd/glint/..."
     sources:
       - "**/*.go"
       - go.mod
@@ -128,7 +130,7 @@ tasks:
       - sh: git describe --tags --exact-match
         msg: "Current commit is not tagged — Linux build requires a git tag"
     cmds:
-      - "GOOS=linux GOARCH=amd64 {{.GO}} build -o {{.BINARY}}-{{.TAG}}-linux-amd64 ./cmd/glint/..."
+      - "GOOS=linux GOARCH=amd64 {{.GO}} build -ldflags \"-X main.version={{.TAG}}\" -o {{.BINARY}}-{{.TAG}}-linux-amd64 ./cmd/glint/..."
     sources:
       - "**/*.go"
       - go.mod

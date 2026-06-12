@@ -4,10 +4,10 @@
 # The matching workflow rule sets DEPLOY_TARGET; job rules use it.
 #
 # Expected behaviour per context:
-#   (no context)       → all jobs active (no context evaluation)
-#   --branch main      → deploy-prod active, deploy-staging skipped
-#   --branch develop   → deploy-prod skipped, deploy-staging active
-#   --branch feat/x    → deploy-prod skipped, deploy-staging skipped (manual)
+#   --branch main             → only build active (no workflow rule matches; WORKFLOW var not set)
+#   --branch develop          → deploy-staging active, deploy-prod skipped
+#   --branch feat/x           → only build active (when: always fallback, no deploy vars)
+#   --var WORKFLOW=gitflow --branch us/feature → deploy-prod + build active
 
 stages:
   - build
@@ -20,9 +20,15 @@ variables:
 
 workflow:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: "
+        $WORKFLOW = 'gitflow' &&
+        $CI_PIPELINE_SOURCE == /(push|web)/ && 
+        $CI_COMMIT_BRANCH =~ /^us\//
+        "
       variables:
         DEPLOY_TARGET: production
+        DEPLOY: true
+        BUILD: true
     - if: '$CI_COMMIT_BRANCH == "develop"'
       variables:
         DEPLOY_TARGET: staging
@@ -38,7 +44,7 @@ deploy-prod:
   stage: deploy
   script: make deploy ENV=production
   rules:
-    - if: '$DEPLOY_TARGET == "production"'
+    - if: '$DEPLOY_TARGET == "production" && $DEPLOY == "true"'
       when: on_success
     - when: never
 
@@ -46,6 +52,6 @@ deploy-staging:
   stage: deploy
   script: make deploy ENV=staging
   rules:
-    - if: '$DEPLOY_TARGET == "staging"'
+    - if: '$DEPLOY_TARGET == "staging" '
       when: on_success
     - when: never
