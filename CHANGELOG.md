@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.13] - 2026-06-12
+
+### Added
+
+- **Variable expansion (`$VAR` / `${VAR}`)** — variable values that reference other variables are now expanded in the effective context after all sources are merged. Transitive chains (`A=$B`, `B=$C`) are resolved over up to ten passes; circular references are left as-is. The expanded values are visible in `--list-vars` output under "Effective context variables" and are used when evaluating `rules:if:` expressions.
+
+- **Non-string scalar variables (`bool`, `int`, `float64`)** — variables declared with bare `true`/`false` or integer values (e.g. `BUILD: true`, `RETRIES: 3`) are now handled correctly in all variable processing paths. Previously they were rendered as `(complex)` in `--list-vars` output and silently dropped from the effective context; they now render and inject as their string equivalents (`"true"`, `"3"`), matching GitLab CI's own behaviour where all variable values are strings.
+
+### Fixed
+
+- **YAML `\/` escape in double-quoted strings** — regex patterns containing `\/` (escaped forward-slash) in double-quoted `if:` expressions (e.g. `$CI_COMMIT_BRANCH =~ /^us\//`) caused a YAML parse error (`found unknown escape character`) with `gopkg.in/yaml.v3`, which does not implement this YAML 1.2 escape. The parser now preprocesses the raw bytes before unmarshalling: inside double-quoted strings, `\/` is rewritten to `\\/`, which `yaml.v3` parses as a literal backslash followed by a slash — preserving the regex intent.
+
 ## [0.2.11] - 2026-06-12
 
 ### Added

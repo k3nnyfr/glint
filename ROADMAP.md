@@ -4,7 +4,7 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11
+## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11; variable expansion and scalar handling shipped v0.2.13
 
 Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
 
@@ -30,6 +30,12 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
 
 ~~**`--list-vars` debug flag**~~ — ✓ shipped v0.2.11; prints sorted `KEY=VALUE` of all collected variables (pipeline YAML + included files + workflow-rule union + effective context) to stderr.
 
+**Shipped in v0.2.13**
+
+- ✓ **Variable expansion** — `$VAR` / `${VAR}` references within variable values are expanded after all sources are merged; transitive chains resolve over multiple passes; visible in `--list-vars` effective-context output.
+- ✓ **Non-string scalar variables** — `BUILD: true`, `RETRIES: 3` and similar bare boolean/integer values now render correctly in `--list-vars` and are injected into the evaluation context as string equivalents; previously shown as `(complex)` and silently dropped.
+- ✓ **YAML `\/` escape in double-quoted strings** — regex patterns like `/^us\//` in double-quoted `if:` blocks no longer cause a parse error; the raw bytes are preprocessed before YAML unmarshalling.
+
 **Remaining work**
 
 - **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table:
@@ -52,7 +58,7 @@ The current rule set covers the most common sources of broken pipelines. These a
 - **`id_tokens:` / `secrets:`** — presence and required-key checks
 - **`pages:publish`** — validate that the path is consistent with `artifacts.paths`
 - **`inherit:` completeness** — flag when a job overrides a default field that would require `inherit: default: false` to suppress
-- **Unreachable jobs** — detect jobs that can never run because every `rules:` branch evaluates to `never` (static analysis only, no variable expansion)
+- **Unreachable jobs** — detect jobs that can never run because every `rules:` branch evaluates to `never` (static analysis only)
 - **Duplicate stage names** — GitLab silently merges them; warn to avoid confusion
 - **`cache:key:files`** — must be a list of paths, not a glob
 

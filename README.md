@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.11-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.13-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -28,6 +28,8 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Extended variable declarations** — `variables:` entries may use the `{value, description, options}` map form (GitLab CI 13.7+); `default.image` accepts both string and map form; `rules.changes`/`rules.exists` accept both list and `{paths, compare_to}` map form
 - **Graph output** — `glint graph` prints a job tree (stages → jobs) to the terminal; `glint graph includes` emits a Mermaid include dependency diagram; `glint graph pipeline` renders a GitLab CI-style PNG/SVG
 - **Context simulation** — pass `--branch`, `--tag`, or `--source` to `glint check` or `glint graph` to see which jobs would be active, manual, or skipped for a specific pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
+- **Variable expansion** — `$VAR` and `${VAR}` references inside variable values are expanded after all sources are merged (pipeline defaults → workflow-rule overrides → CLI flags); transitive chains resolve automatically; visible via `--list-vars`
+- **Non-string variable scalars** — `BUILD: true`, `RETRIES: 3` and other bare boolean/integer variable values are handled correctly throughout: they render in `--list-vars` output and are injected into the evaluation context as their string equivalents, matching GitLab CI's behaviour
 
 See [ROADMAP.md](ROADMAP.md) for planned improvements.
 
@@ -200,6 +202,7 @@ glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
 **Evaluated:**
 - `rules:if:` — full expression language: `==`, `!=`, `=~`, `!~`, `&&`, `||`, `!`, `()`, `$VAR`, string literals, `null`
 - `only:` / `except:` — ref keywords (`branches`, `tags`, `merge_requests`, `schedules`, …), branch name globs (`feat/*`), and `/regex/` patterns
+- Variable expansion — `$VAR` / `${VAR}` references within variable values are expanded after all sources are merged; use `--list-vars` to inspect the resolved values
 
 **Not evaluated** (no git tree at lint time): `rules:changes:`, `rules:exists:`.
 Rules without an `if:` clause always match.

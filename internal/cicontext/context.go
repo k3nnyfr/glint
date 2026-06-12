@@ -1,6 +1,9 @@
 package cicontext
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Context holds the simulated CI execution environment used for context-aware
 // pipeline evaluation (rules:if:, only:, except:, workflow:rules:).
@@ -117,24 +120,129 @@ func (c *Context) Summary() string {
 
 // ExtractStringVars converts a map[string]any variable block (as used by
 // Pipeline.Variables and Rule.Variables) to a flat map[string]string.
-// Plain string values are used directly. Extended {value: "..."} map form
-// uses the "value" key. Other forms are skipped.
+// Plain string values are used directly. Extended {value: ...} map form uses
+// the "value" key. Scalar non-string values (bool, int, float64) are
+// converted to their string representation, matching GitLab's own behaviour
+// where all CI variable values are strings.
 func ExtractStringVars(m map[string]any) map[string]string {
 	if len(m) == 0 {
 		return nil
 	}
 	out := make(map[string]string, len(m))
 	for k, v := range m {
-		switch val := v.(type) {
-		case string:
-			out[k] = val
-		case map[string]any:
-			if s, ok := val["value"].(string); ok {
-				out[k] = s
-			}
+		if s, ok := ScalarString(v); ok {
+			out[k] = s
 		}
 	}
 	return out
+}
+
+// ScalarString converts a YAML-decoded CI variable value to its string
+// representation. Handles plain scalars and the extended {value: ...} map
+// form. Returns (s, true) on success, ("", false) for unrecognised forms.
+func ScalarString(v any) (string, bool) {
+	switch val := v.(type) {
+	case string:
+		return val, true
+	case bool:
+		return fmt.Sprintf("%t", val), true
+	case int:
+		return fmt.Sprintf("%d", val), true
+	case float64:
+		return fmt.Sprintf("%g", val), true
+	case map[string]any:
+		inner, ok := val["value"]
+		if !ok {
+			return "", false
+		}
+		return ScalarString(inner)
+	}
+	return "", false
+}
+
+// ExpandVars expands $VAR and ${VAR} references within every value in
+// ctx.Vars, using the same map as the expansion source. Iteration repeats
+// (up to 10 passes) so transitive chains like A=$B, B=$C resolve fully.
+// Variables that form circular references are left as-is after the limit.
+func (c *Context) ExpandVars() {
+	if c == nil || len(c.Vars) == 0 {
+		return
+	}
+	for range 10 {
+		changed := false
+		for k, v := range c.Vars {
+			expanded := expandVarRefs(v, c.Vars)
+			if expanded != v {
+				c.Vars[k] = expanded
+				changed = true
+			}
+		}
+		if !changed {
+			return
+		}
+	}
+}
+
+// expandVarRefs replaces $VAR and ${VAR} occurrences in s with their values
+// from vars. Unknown variables are left unchanged.
+func expandVarRefs(s string, vars map[string]string) string {
+	if !strings.Contains(s, "$") {
+		return s
+	}
+	var sb strings.Builder
+	i := 0
+	for i < len(s) {
+		if s[i] != '$' {
+			sb.WriteByte(s[i])
+			i++
+			continue
+		}
+		i++ // consume '$'
+		if i >= len(s) {
+			sb.WriteByte('$')
+			break
+		}
+		if s[i] == '{' {
+			i++ // consume '{'
+			j := i
+			for j < len(s) && isIdentByte(s[j]) {
+				j++
+			}
+			if j < len(s) && s[j] == '}' {
+				name := s[i:j]
+				if val, ok := vars[name]; ok {
+					sb.WriteString(val)
+				} else {
+					sb.WriteString("${")
+					sb.WriteString(name)
+					sb.WriteByte('}')
+				}
+				i = j + 1
+			} else {
+				// Malformed ${…} — emit literally
+				sb.WriteString("${")
+				i = j
+			}
+		} else {
+			j := i
+			for j < len(s) && isIdentByte(s[j]) {
+				j++
+			}
+			if j > i {
+				name := s[i:j]
+				if val, ok := vars[name]; ok {
+					sb.WriteString(val)
+				} else {
+					sb.WriteByte('$')
+					sb.WriteString(name)
+				}
+				i = j
+			} else {
+				sb.WriteByte('$')
+			}
+		}
+	}
+	return sb.String()
 }
 
 // slugify converts a ref name to its GitLab slug form:

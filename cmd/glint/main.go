@@ -404,14 +404,8 @@ func printVarMap(m map[string]any) {
 }
 
 func varValueString(v any) string {
-	switch val := v.(type) {
-	case string:
-		return val
-	case map[string]any:
-		if s, ok := val["value"].(string); ok {
-			return s
-		}
-		return "(complex)"
+	if s, ok := cicontext.ScalarString(v); ok {
+		return s
 	}
 	return "(complex)"
 }
@@ -432,6 +426,9 @@ func enrichContext(ctx *cicontext.Context, p *model.Pipeline) {
 	for k, v := range ruleVars {
 		ctx.Inject(k, v)
 	}
+	// Expand $VAR / ${VAR} references within variable values now that all
+	// sources (pipeline, workflow rules, CLI) have been merged.
+	ctx.ExpandVars()
 }
 
 func printContext(p *model.Pipeline, ctx *cicontext.Context) {
