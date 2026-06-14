@@ -1,0 +1,48 @@
+stages:
+  - deploy
+  - test
+
+variables:
+  DEPLOY: "false"
+  SKIP_TEST: "true"
+
+# GL042: both if: conditions always evaluate to false given the declared variables.
+always-dead-deploy:
+  stage: deploy
+  rules:
+    - if: '$DEPLOY == "true"'
+      when: on_success
+  script: echo deploy
+
+# GL042: if: is false, explicit when:on_success rule — still never fires.
+always-dead-test:
+  stage: test
+  rules:
+    - if: '$SKIP_TEST == "false"'
+      when: on_success
+  script: echo test
+
+# Not GL042: references a predefined CI_ variable → unknown value → skip check.
+predefined-var-job:
+  stage: test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "nonexistent-branch"'
+      when: on_success
+  script: echo branch
+
+# Not GL042: has an unconditional rule (no if: → always matches).
+unconditional-job:
+  stage: test
+  rules:
+    - if: '$DEPLOY == "true"'
+      when: never
+    - when: on_success
+  script: echo always
+
+# Not GL042: references undeclared variable → unknown → conservative.
+undeclared-var-job:
+  stage: test
+  rules:
+    - if: '$UNDECLARED_VAR == "something"'
+      when: on_success
+  script: echo undeclared

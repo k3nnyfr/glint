@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.19-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.20-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -39,6 +39,9 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **`pages:` keyword + `artifacts.paths` (GL039)** — warns when a job uses the `pages:` keyword but `artifacts.paths` does not include the publish directory (default: `public`)
 - **Duplicate stage names (GL040)** — warns when a stage name appears more than once in `stages:`; GitLab silently merges duplicates, which can cause confusing ordering
 - **`cache.key.files` glob detection (GL041)** — warns when `cache.key.files` entries contain glob metacharacters; this field requires exact file paths, not patterns
+- **`rules:if:` evaluated reachability (GL042)** — warns when every `rules:if:` condition in a job evaluates to false using the values of variables declared in the pipeline YAML, making the job statically unreachable; only fires when all referenced variables are declared (predefined `CI_*` vars are excluded to avoid false positives)
+- **`inherit:` completeness (GL043)** — warns when `inherit: default:` is declared but the pipeline has no `default:` block (dead declaration), or when the list form names fields not set in the `default:` block
+- **`glint explain <RULE>`** — new subcommand that prints the rule description, rationale, a bad-YAML example, and the corrected fix; `glint explain` (no argument) lists all rules with their severity
 - **Recursive include depth limit** — include chains are capped at 100 nesting levels (matching GitLab's own limit); project and component includes are now tracked in the visited-file set to prevent cross-include cycles
 - **`include: inputs:` substitution** — when a `component:` entry has a `with:` block, all `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in the fetched template are substituted before parsing, so component-scoped jobs get their correct `stage:` and keyword values instead of `$[[…]]` placeholders
 - **Offline mode + include cache** — pass `--cache-dir DIR` to cache fetched remote templates (project: and component: includes) to disk; `--offline` serves entirely from the cache without making network calls
@@ -321,6 +324,21 @@ Jobs are colour-coded by type:
 DAG mode (job-to-job Bézier arrows) activates automatically when any job has a `needs:` list.
 Classic mode draws L-shaped or straight connectors between stage columns otherwise.
 
+### `glint explain`
+
+Print the documentation for a specific lint rule.
+
+```bash
+# Show description, example, and fix for GL007
+glint explain GL007
+
+# Case-insensitive: gl007 and GL007 are equivalent
+glint explain gl007
+
+# List all rules with their IDs and severity
+glint explain
+```
+
 ### Context simulation
 
 Pass `--branch`, `--tag`, or `--source` to `glint check` to see which jobs
@@ -462,6 +480,8 @@ Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filte
 | GL032 | WARNING | `rules:if:` references `$VAR` not declared in `variables:` (pipeline, job, or `workflow:rules:variables:`) — may be a false positive for variables set in GitLab CI/CD project settings |
 | GL033 | WARNING | Every rule in `rules:` has `when: never` — job is permanently excluded from the pipeline (statically provable without context) |
 | GL035 | WARNING | `rules:changes` / `rules:exists` path is absolute; GitLab CI paths are relative to the repo root — absolute paths will never match |
+| GL042 | WARNING | Every `rules:if:` condition evaluates to false given the declared pipeline variable values — job can never be active (only fires when all referenced variables are declared in YAML) |
+| GL043 | WARNING | `inherit: default:` is declared but there is no `default:` block in the pipeline, or the list form names fields not set in `default:` — declaration has no effect |
 
 ### Hidden jobs (templates)
 

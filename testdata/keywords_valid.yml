@@ -9,6 +9,10 @@ workflow:
       when: always
     - when: never
 
+default:
+  tags:
+    - docker
+
 variables:
   GO_VERSION: "1.26"
 

@@ -107,6 +107,18 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/config_suppress/.gitlab-ci.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/static_dead_rules.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/inherit_dead.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/inherit_dead_fields.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} explain GL007
+        ignore_error: false
+      - cmd: ./{{.BINARY}} explain gl042
+        ignore_error: false
+      - cmd: ./{{.BINARY}} explain
+        ignore_error: false
 
   lint-go:
     desc: Run go vet on all packages

@@ -143,4 +143,15 @@ const (
 
 	// GL041: cache.key.files contains a glob pattern; it must be a list of exact file paths.
 	RuleInvalidCacheKeyFiles = "GL041"
+
+	// GL042: every rules:if: condition in a job's rules: block evaluates to false
+	// given the values of variables declared in the pipeline YAML, so the job can
+	// never be active. Only fires when all referenced variables are declared
+	// (predefined CI_* / GITLAB_* vars are not evaluated to avoid false positives).
+	RuleStaticDeadRules = "GL042"
+
+	// GL043: a job declares 'inherit: default:' (true, false, or list) but the
+	// pipeline has no 'default:' block, making the declaration a no-op. Also fires
+	// when 'inherit: default: [list]' names fields not set in the default: block.
+	RuleInheritNoDefault = "GL043"
 )

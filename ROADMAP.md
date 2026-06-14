@@ -4,53 +4,25 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 ---
 
-## Context-aware validation — ✓ single-context shipped in v0.2.0; expression evaluator hardened post-v0.2.0; implicit defaults and --list-vars shipped v0.2.11; variable expansion and scalar handling shipped v0.2.13; workflow evaluation and output fixes shipped v0.2.14
+## Context simulation
 
-Single-context simulation is fully implemented. Pass `--branch`, `--tag`, `--source`, or `--var` to either `glint check` or `glint graph`; jobs are evaluated and shown as active / manual / skipped.
+Pass `--branch`, `--tag`, `--source`, or `--var` to `glint check` or `glint graph` to evaluate `rules:if:` expressions and `only`/`except` filters against a specific pipeline event.
 
-```bash
-# shipped: single-context simulation
-glint check --branch develop .gitlab-ci.yml
-glint check --tag v1.2.0 .gitlab-ci.yml
-glint check --source merge_request_event --var CI_MERGE_REQUEST_TARGET_BRANCH_NAME=main .gitlab-ci.yml
-glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] / [manual]
-```
-
-**Shipped post-v0.2.0 (unreleased)**
-
-- ✓ **`workflow:rules:variables:` propagation** — variables defined on the matching `workflow:rules:` entry are injected into the evaluation context before job `rules:if:` expressions are evaluated. Pipeline-level `variables:` defaults are also available. Priority chain (highest wins): `--var` > shortcuts > workflow-rule vars > pipeline defaults.
-- ✓ **Expression evaluator: multi-line expressions** — newlines in block-scalar and folded YAML `if:` values are now treated as whitespace; `||` / `&&` on a continuation line evaluate correctly.
-- ✓ **Expression evaluator: `${VAR}` curly-brace syntax** — `${CI_COMMIT_BRANCH}` is equivalent to `$CI_COMMIT_BRANCH` everywhere.
-- ✓ **Expression evaluator: regex flags** — `/pattern/i`, `/pattern/m`, `/pattern/s` are now supported; `i` maps to `(?i)` in Go's regexp.
-- ✓ **Expression evaluator: variable as regex RHS** — `$BRANCH =~ $PATTERN` where `$PATTERN` holds a `/regex/` string is evaluated correctly.
-- ✓ **Expression evaluator: bare `true` / `false` keywords** — treated as the strings `"true"` / `"false"` matching GitLab CI's own behaviour; `$GATEWAY_ENABLED == true` now evaluates correctly.
-- ✓ **Expression evaluator: integer literals** — `$COUNT == 4`, `$ENABLED == 1`, `$DISABLED == 0` compare as decimal strings.
-
-~~**Implicit default context**~~ — ✓ shipped v0.2.11; `glint check` and `glint graph` default to `--branch main --source push` when no context flag is given, so `rules:if:` expressions are always evaluated out of the box.
-
-~~**`--list-vars` debug flag**~~ — ✓ shipped v0.2.11; prints sorted `KEY=VALUE` of all collected variables (pipeline YAML + included files + workflow-rule union + effective context) to stderr.
-
-**Shipped in v0.2.13**
-
-- ✓ **Variable expansion** — `$VAR` / `${VAR}` references within variable values are expanded after all sources are merged; transitive chains resolve over multiple passes; visible in `--list-vars` effective-context output.
-- ✓ **Non-string scalar variables** — `BUILD: true`, `RETRIES: 3` and similar bare boolean/integer values now render correctly in `--list-vars` and are injected into the evaluation context as string equivalents; previously shown as `(complex)` and silently dropped.
-- ✓ **YAML `\/` escape in double-quoted strings** — regex patterns like `/^us\//` in double-quoted `if:` blocks no longer cause a parse error; the raw bytes are preprocessed before YAML unmarshalling.
-
-**Shipped in v0.2.14**
-
-- ✓ **Workflow rule strict evaluation** — workflow `rules:if:` now uses strict mode (parse failure → skip rule, not match); fixes premature matching that blocked later rules and injected wrong variables.
-- ✓ **Single `=` operator** — `=` is now accepted as an alias for `==` in `rules:if:` expressions, matching common user intent.
-- ✓ **Source location through `extends:` resolution** — `File` and `Line` are now preserved when a job is rebuilt via extends, so findings reference the correct source location.
-- ✓ **Sorted findings output** — findings are sorted by `(File, Line, Rule)`; same-file issues group together in line order.
-- ✓ **Consistent warning format** — all warnings use ruff-style `path: [warning] message` format.
-- ✓ **`--version` / `-v` flag** — prints compiled version; version also shown at the top of every `--help` output.
-
-**Remaining work**
-
-- **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table:
-  ```bash
-  glint check --context branch=main --context branch=develop --context tag=v1.0.0 .gitlab-ci.yml
-  ```
+- ~~**Single-context simulation**~~ — ✓ shipped v0.2.0; `--branch`, `--tag`, `--source`, `--var` flags on both subcommands; jobs classified as active / manual / skipped
+- ~~**`workflow:rules:variables:` propagation**~~ — ✓ shipped post-v0.2.0; variables from the matching workflow rule entry injected into the evaluation context before job `rules:if:` expressions are evaluated
+- ~~**Expression evaluator: multi-line `if:` values**~~ — ✓ shipped post-v0.2.0; newlines in block-scalar and folded YAML `if:` values treated as whitespace
+- ~~**Expression evaluator: `${VAR}` syntax**~~ — ✓ shipped post-v0.2.0; `${CI_COMMIT_BRANCH}` equivalent to `$CI_COMMIT_BRANCH` everywhere
+- ~~**Expression evaluator: regex flags**~~ — ✓ shipped post-v0.2.0; `/pattern/i`, `/pattern/m`, `/pattern/s` supported
+- ~~**Expression evaluator: variable as regex RHS**~~ — ✓ shipped post-v0.2.0; `$BRANCH =~ $PATTERN` where `$PATTERN` holds a `/regex/` string evaluates correctly
+- ~~**Expression evaluator: bare `true`/`false` and integer literals**~~ — ✓ shipped post-v0.2.0; `$FLAG == true`, `$COUNT == 4` compare as decimal strings matching GitLab CI behaviour
+- ~~**Implicit default context**~~ — ✓ shipped v0.2.11; defaults to `--branch main --source push` when no context flag is given, so `rules:if:` is always evaluated
+- ~~**`--list-vars` debug flag**~~ — ✓ shipped v0.2.11; prints sorted `KEY=VALUE` of all collected pipeline variables (root file + includes + workflow-rule union + effective context) to stderr
+- ~~**Variable expansion**~~ — ✓ shipped v0.2.13; `$VAR`/`${VAR}` references within variable values expanded after all sources are merged; transitive chains resolved; visible in `--list-vars`
+- ~~**Non-string scalar variables**~~ — ✓ shipped v0.2.13; `BUILD: true`, `RETRIES: 3` rendered and injected correctly instead of being silently dropped
+- ~~**YAML `\/` escape in double-quoted strings**~~ — ✓ shipped v0.2.13; regex patterns like `/^us\//` in double-quoted `if:` blocks no longer cause a parse error
+- ~~**Workflow rule strict evaluation**~~ — ✓ shipped v0.2.14; unparseable `if:` skips the rule instead of matching everything; prevents wrong variables being injected
+- ~~**Single `=` operator**~~ — ✓ shipped v0.2.14; bare `=` accepted as alias for `==` in `rules:if:` expressions
+- **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table (`--context branch=main --context branch=develop --context tag=v1.0.0`)
 - **Context-scoped linting** — skip `needs:`/`dependencies:` cross-checks for jobs that are statically unreachable in the given context
 - **`rules:changes:` evaluation** — path glob evaluation against the local git tree
 
@@ -70,7 +42,7 @@ The current rule set covers the most common sources of broken pipelines. These a
 - ~~**Duplicate stage names (GL040)**~~ — ✓ shipped v0.2.16; warns when a stage appears more than once in `stages:`
 - ~~**`cache:key:files` must be exact paths (GL041)**~~ — ✓ shipped v0.2.16; warns when entries look like glob patterns
 - ~~**Unreachable jobs**~~ — covered by GL033 (shipped v0.2.15); every-`when:never` rules block is statically dead
-- **`inherit:` completeness** — flag when a job overrides a default field that would require `inherit: default: false` to suppress
+- ~~**`inherit:` completeness (GL043)**~~ — ✓ shipped v0.2.20; warns when `inherit: default:` is declared but there's no `default:` block, or list form names fields not set in `default:`
 
 ---
 
@@ -118,7 +90,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 - ~~**`needs: optional: true` false-positive errors**~~ — ✓ shipped post-v0.2.0; optional missing needs are downgraded to `[WARNING]`
 - ~~**`extends:` jobs with missing script false errors**~~ — ✓ shipped post-v0.2.0; jobs using `extends:` that have no `script` after resolution emit `[WARNING]` (the script may come from an unfetchable remote base)
-- **`rules:if:` static reachability** — report when a job's entire `rules:` block can never evaluate to `when: on_success` given the declared pipeline variables (pure static, no context required)
+- ~~**`rules:if:` static reachability (GL042)**~~ — ✓ shipped v0.2.20; warns when all `rules:if:` conditions evaluate to false given declared variable values (only fires when all referenced vars are declared in YAML)
 
 ---
 
@@ -141,8 +113,8 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18
-- **`--explain <rule-id>`** — print the rule description, rationale, and an example fix
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20
+- ~~**`glint explain <rule-id>`**~~ — ✓ shipped v0.2.20; prints rule description, rationale, bad-YAML example, and fix; `glint explain` (no arg) lists all rules
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`
 - **Changelog automation** — generate release notes from Conventional Commits via `git-cliff` or similar

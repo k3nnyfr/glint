@@ -1,0 +1,20 @@
+stages:
+  - build
+  - test
+
+default:
+  image: node:20
+
+# GL043: before_script is in the list but not defined in default:.
+selective-bad:
+  stage: build
+  inherit:
+    default: [image, before_script]   # before_script not in default:
+  script: echo hi
+
+# Not GL043: image IS defined in default: — list is valid.
+selective-good:
+  stage: test
+  inherit:
+    default: [image]
+  script: echo hi

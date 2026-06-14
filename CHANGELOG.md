@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.20] - 2026-06-14
+
+### Added
+
+- **`glint explain <RULE>`** — new subcommand that prints the description, rationale, a bad-YAML example, and the corrected fix for any rule ID (GL001–GL043). `glint explain` with no argument lists all rules with ID, severity, and title. Rule IDs are case-insensitive (`gl007` and `GL007` are equivalent).
+
+- **`rules:if:` evaluated reachability (GL042)** — warns when every `rules:if:` condition in a job evaluates to false using the values of variables declared in the pipeline YAML, meaning the job can never be included in a pipeline run. The check is conservative: it only fires when all variables referenced in the `if:` expressions are explicitly declared in the YAML; predefined `CI_*` / `GITLAB_*` variables and undeclared variables are treated as unknown (may have any runtime value) to avoid false positives.
+
+- **`inherit:` completeness (GL043)** — warns when a job declares `inherit: default:` (boolean or list form) but the pipeline has no `default:` block, making the declaration a no-op. Also warns when the list form names fields (e.g. `[image, before_script]`) that are not actually set in the `default:` block — those list entries have no effect.
+
 ## [0.2.19] - 2026-06-14
 
 ### Added

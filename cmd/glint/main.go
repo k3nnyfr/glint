@@ -39,6 +39,7 @@ Usage: glint [OPTIONS] <COMMAND>
 Commands:
   check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
   graph    Visualise the pipeline as a job tree or Mermaid graph
+  explain  Show description and fix for a lint rule (e.g. glint explain GL007)
 
 Options:
   -h, --help     Print help
@@ -57,6 +58,8 @@ func main() {
 		cmdCheck(os.Args[2:])
 	case "graph":
 		cmdGraph(os.Args[2:])
+	case "explain":
+		cmdExplain(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, globalUsage)

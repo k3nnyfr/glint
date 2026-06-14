@@ -1,0 +1,26 @@
+stages:
+  - build
+  - test
+
+# No default: block — any inherit: default: declaration is a no-op.
+
+# GL043: inherit: default: false but no default: block.
+isolated-job:
+  stage: build
+  inherit:
+    default: false
+  script: echo isolated
+
+# GL043: inherit: default: [list] but no default: block.
+selective-inherit-job:
+  stage: test
+  inherit:
+    default: [image, tags]
+  script: echo selective
+
+# Not GL043: inherit only touches variables: (no default: check needed).
+vars-inherit-job:
+  stage: test
+  inherit:
+    variables: false
+  script: echo vars-only

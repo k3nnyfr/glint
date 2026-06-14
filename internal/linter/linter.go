@@ -62,6 +62,8 @@ func Lint(p *model.Pipeline) []Finding {
 	findings = append(findings, checkNeeds(p)...)
 	findings = append(findings, checkDependencies(p)...)
 	findings = append(findings, checkVariableRefs(p)...)
+	findings = append(findings, checkRulesIfReachability(p)...)
+	findings = append(findings, checkInheritCompleteness(p)...)
 	slices.SortStableFunc(findings, func(a, b Finding) int {
 		if c := cmp.Compare(a.File, b.File); c != 0 {
 			return c
