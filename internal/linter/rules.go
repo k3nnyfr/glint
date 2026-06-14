@@ -118,4 +118,29 @@ const (
 	// GL033: every rule in a job's rules: block has when: never, so the job
 	// can never be included in any pipeline run.
 	RuleDeadRules = "GL033"
+
+	// GL034: services: map form is missing 'name', or 'alias' is not a valid DNS label.
+	RuleInvalidService = "GL034"
+
+	// GL035: rules:changes or rules:exists contains an absolute path (starts with /);
+	// GitLab CI paths are relative to the repository root and absolute paths never match.
+	RuleAbsoluteGlobPath = "GL035"
+
+	// GL036: timeout: is not a valid GitLab CI duration string (e.g. '1h 30m', '90 minutes').
+	RuleInvalidTimeout = "GL036"
+
+	// GL037: id_tokens: entry is missing the required 'aud' key.
+	RuleInvalidIDToken = "GL037"
+
+	// GL038: secrets: entry is missing a provider key (vault, gcp_secret_manager, or azure_key_vault).
+	RuleInvalidSecret = "GL038"
+
+	// GL039: a job has the pages: keyword but artifacts.paths does not include the publish directory.
+	RulePagesPublish = "GL039"
+
+	// GL040: a stage name appears more than once in stages:; GitLab silently merges duplicates.
+	RuleDuplicateStage = "GL040"
+
+	// GL041: cache.key.files contains a glob pattern; it must be a list of exact file paths.
+	RuleInvalidCacheKeyFiles = "GL041"
 )

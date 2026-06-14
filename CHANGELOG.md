@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.18] - 2026-06-14
+
+### Added
+
+- **`--format json`** — `glint check` can now emit a structured JSON report instead of plain text. The schema (version `1`) includes `glint_version`, `pipeline`, a `findings` array (each finding has `rule`, `severity`, `file`, `line`, `job`, `message`), and a `summary` block (`total`, `errors`, `warnings`). An empty findings array is `[]`, not `null`. In this mode the human-readable summary line is written to stderr so stdout contains only the JSON payload.
+
+- **`--format sarif`** — emits a SARIF 2.1.0 JSON document (schema `https://json.schemastore.org/sarif-2.1.0.json`). The `runs[0].tool.driver` lists every unique rule ID found in findings; each `result` carries `ruleId`, `level` (`error`/`warning`), `message.text` (including the job name prefix), and `locations[0].physicalLocation` with `artifactLocation.uri` and `region.startLine` (when available). Pipeline-level findings without a file have no `locations` entry. This format is consumed natively by GitHub Code Scanning and GitLab SAST.
+
+- **`--format junit`** — emits a JUnit XML document compatible with CI test-report artifact parsers (GitLab: `artifacts:reports:junit`; GitHub: upload-artifact + test-reporter). Each finding becomes a `<testcase>` with a `<failure>` child whose `message` and `type` attributes carry the finding details. A clean pipeline produces a single passing `<testcase>` with no `<failure>` element.
+
+- **`--format github`** — emits GitHub Actions workflow-command annotation lines (`::error file=…,line=…,title=RULE::message` / `::warning …`). GitHub CI renders these as inline comments on the relevant file in pull requests. Pipeline-level findings without a file omit the `file=` parameter.
+
+- **Format validation** — an unknown `--format` value exits with code 2 and a helpful error message listing the valid formats.
+
+## [0.2.17] - 2026-06-14
+
+### Added
+
+- **Recursive include depth limit** — `resolveIncludes` now accepts a `depth` counter and returns a warning when the nesting depth exceeds 100 (matching GitLab's documented limit). This guards against pathologically deep include chains.
+
+- **Cycle detection for project and component includes** — `project:` and `component:` includes were not previously tracked in the `visited` map (only `local:` and `remote:` were). They are now registered before recursing into their sub-includes, preventing cross-file include cycles from causing infinite loops.
+
+- **`include: inputs:` substitution** — when a `component:` include entry has a `with:` block, all `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default('…') ]]` placeholders in the fetched template YAML are substituted with the corresponding values before parsing. Supported default value forms: `'single quoted'`, `"double quoted"`, bare booleans (`true`/`false`), and bare integers. Missing keys without a default become empty strings. This replaces the previous behaviour of leaving `$[[…]]` tokens in the YAML, which caused false-positive lint findings.
+
+- **Include cache (`--cache-dir`)** — pass `--cache-dir DIR` to `glint check` or `glint graph` to persist fetched remote templates (both `project:` and `component:` includes and `remote:` URLs) to a local directory. Cache entries are keyed by the SHA-256 of the full request coordinates (base URL + project + path + ref). The directory is created automatically on first use.
+
+- **Offline mode (`--offline`)** — pass `--offline` to skip all network calls. Remote includes not present in the cache are surfaced as warnings (same UX as "no token"). When `--offline` is set without an explicit `--cache-dir`, the default platform cache directory (`$XDG_CACHE_HOME/glint` or `~/.cache/glint`) is used automatically.
+
+## [0.2.16] - 2026-06-14
+
+### Added
+
+- **`services:` validation (GL034)** — the map form of a service entry requires a `name` key; emits an `ERROR` when absent. The optional `alias` field must be a valid DNS label (letters, digits, hyphens, and dots; must start and end with an alphanumeric character); invalid aliases emit an `ERROR`.
+
+- **`rules:changes` / `rules:exists` absolute path detection (GL035)** — emits a `WARNING` when a path in `rules:changes:` or `rules:exists:` starts with `/`. GitLab CI evaluates these paths relative to the repository root, so absolute paths can never match. Applies to both the list form and the `{paths: …}` map form.
+
+- **`timeout:` format validation (GL036)** — emits an `ERROR` when a job's `timeout:` (or the pipeline-level `default.timeout:`) is not a valid GitLab CI duration string. Valid formats: `30m`, `1h 30m`, `90 minutes`, `2 hours 30 minutes`, `1 day`, etc.
+
+- **`id_tokens:` `aud` validation (GL037)** — emits an `ERROR` for each OIDC token entry in `id_tokens:` that is missing the required `aud` key. GitLab returns an API error at pipeline start when `aud` is absent.
+
+- **`secrets:` provider validation (GL038)** — emits an `ERROR` for each secret entry in `secrets:` that does not declare a provider key (`vault`, `gcp_secret_manager`, or `azure_key_vault`).
+
+- **`pages:` keyword + `artifacts.paths` consistency (GL039)** — emits a `WARNING` when a job uses the `pages:` keyword but `artifacts.paths` does not include the publish directory (default `public`, or the value of `pages.publish`). GitLab Pages will not deploy unless the publish directory is listed as an artifact.
+
+- **Duplicate stage names (GL040)** — emits a `WARNING` when a stage name appears more than once in the top-level `stages:` list. GitLab silently merges duplicate stage entries, which can produce confusing pipeline ordering.
+
+- **`cache.key.files` glob detection (GL041)** — emits a `WARNING` when an entry in `cache.key.files` contains glob metacharacters (`*`, `?`, `[`). The `files` field requires exact file paths; GitLab does not expand globs there.
+
 ## [0.2.15] - 2026-06-13
 
 ### Added

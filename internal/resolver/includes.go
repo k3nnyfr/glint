@@ -4,11 +4,26 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"git.k3nny.fr/glint/internal/fetcher"
 	"git.k3nny.fr/glint/internal/model"
 )
+
+// maxIncludeDepth is the maximum nesting level for include: chains.
+// This matches GitLab's own documented limit and also guards against
+// include cycles that slip past the visited-key deduplication.
+const maxIncludeDepth = 100
+
+// inputPlaceholderRe matches GitLab CI component input references:
+//
+//	$[[ inputs.KEY ]]
+//	$[[ inputs.KEY | default('value') ]]
+//	$[[ inputs.KEY | default(true) ]]
+//	$[[ inputs.KEY | default(123) ]]
+var inputPlaceholderRe = regexp.MustCompile(
+	`\$\[\[\s*inputs\.(\w+)(?:\s*\|\s*default\(([^)]*)\))?\s*\]\]`)
 
 // IncludeWarning describes an include entry that could not be resolved.
 // These are surfaced to the user as [WARNING] lines before the lint findings.
@@ -53,11 +68,18 @@ type ExtendWarning struct {
 // processing included files (forwarded from resolver.Resolve calls).
 func ResolveIncludes(p *model.Pipeline, cfg fetcher.GitLabConfig, rootDir string) ([]IncludeWarning, []ExtendWarning) {
 	visited := map[string]bool{}
-	return resolveIncludes(p, p.Include, cfg, rootDir, visited)
+	return resolveIncludes(p, p.Include, cfg, rootDir, visited, 0)
 }
 
 // resolveIncludes is the recursive core of ResolveIncludes.
-func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) ([]IncludeWarning, []ExtendWarning) {
+func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool, depth int) ([]IncludeWarning, []ExtendWarning) {
+	if depth > maxIncludeDepth {
+		return []IncludeWarning{{
+			Label: "includes",
+			Err:   fmt.Errorf("include nesting depth exceeded (%d levels) — possible include cycle detected", maxIncludeDepth),
+		}}, nil
+	}
+
 	var warnings []IncludeWarning
 	var extWarnings []ExtendWarning
 
@@ -68,14 +90,15 @@ func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig
 		}
 
 		if project, _ := entry["project"].(string); project != "" {
-			w, ew := resolveProjectInclude(p, entry, project, cfg, rootDir, visited)
+			w, ew := resolveProjectInclude(p, entry, project, cfg, rootDir, visited, depth)
 			warnings = append(warnings, w...)
 			extWarnings = append(extWarnings, ew...)
 			continue
 		}
 
 		if compRef, _ := entry["component"].(string); compRef != "" {
-			w, ew, hadErr := resolveComponentInclude(p, compRef, cfg, rootDir, visited)
+			inputs := extractInputs(entry)
+			w, ew, hadErr := resolveComponentInclude(p, compRef, inputs, cfg, rootDir, visited, depth)
 			if hadErr {
 				warnings = append(warnings, w)
 			}
@@ -84,14 +107,14 @@ func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig
 		}
 
 		if local, _ := entry["local"].(string); local != "" {
-			w, ew := resolveLocalInclude(p, local, cfg, rootDir, visited)
+			w, ew := resolveLocalInclude(p, local, cfg, rootDir, visited, depth)
 			warnings = append(warnings, w...)
 			extWarnings = append(extWarnings, ew...)
 			continue
 		}
 
 		if remote, _ := entry["remote"].(string); remote != "" {
-			w, ew := resolveRemoteInclude(p, remote, cfg, rootDir, visited)
+			w, ew := resolveRemoteInclude(p, remote, cfg, rootDir, visited, depth)
 			warnings = append(warnings, w...)
 			extWarnings = append(extWarnings, ew...)
 			continue
@@ -105,7 +128,7 @@ func resolveIncludes(p *model.Pipeline, includes []any, cfg fetcher.GitLabConfig
 // resolveLocalInclude reads a local file from disk (paths are always relative
 // to the repository root, with or without a leading slash), recursively
 // resolves its own includes, and merges it into p.
-func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) ([]IncludeWarning, []ExtendWarning) {
+func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool, depth int) ([]IncludeWarning, []ExtendWarning) {
 	relPath := strings.TrimPrefix(rawPath, "/")
 	absPath := filepath.Join(rootDir, relPath)
 	label := "local " + rawPath
@@ -131,7 +154,7 @@ func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabCo
 	var warnings []IncludeWarning
 	var extWarnings []ExtendWarning
 	if len(included.Include) > 0 {
-		w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
+		w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited, depth+1)
 		warnings = append(warnings, w...)
 		extWarnings = append(extWarnings, ew...)
 	}
@@ -142,7 +165,7 @@ func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabCo
 
 // resolveRemoteInclude fetches a plain HTTPS URL, parses it as CI YAML, and
 // merges it into p. Sub-includes of the fetched file are resolved recursively.
-func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) ([]IncludeWarning, []ExtendWarning) {
+func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool, depth int) ([]IncludeWarning, []ExtendWarning) {
 	label := "remote " + rawURL
 
 	if visited[rawURL] {
@@ -150,7 +173,7 @@ func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabCo
 	}
 	visited[rawURL] = true
 
-	data, err := fetcher.FetchURL(rawURL)
+	data, err := cfg.FetchURL(rawURL)
 	if err != nil {
 		return []IncludeWarning{{Label: label, Err: err}}, nil
 	}
@@ -164,7 +187,7 @@ func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabCo
 	var warnings []IncludeWarning
 	var extWarnings []ExtendWarning
 	if len(included.Include) > 0 {
-		w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
+		w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited, depth+1)
 		warnings = append(warnings, w...)
 		extWarnings = append(extWarnings, ew...)
 	}
@@ -175,7 +198,7 @@ func resolveRemoteInclude(p *model.Pipeline, rawURL string, cfg fetcher.GitLabCo
 
 // resolveProjectInclude fetches all files listed under a single project: entry
 // and merges them into p.
-func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) ([]IncludeWarning, []ExtendWarning) {
+func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool, depth int) ([]IncludeWarning, []ExtendWarning) {
 	ref, _ := entry["ref"].(string)
 	var warnings []IncludeWarning
 	var extWarnings []ExtendWarning
@@ -185,6 +208,12 @@ func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project stri
 		if ref != "" {
 			label += "@" + ref
 		}
+
+		visitKey := fmt.Sprintf("project:%s:%s@%s", project, filePath, ref)
+		if visited[visitKey] {
+			continue
+		}
+		visited[visitKey] = true
 
 		if !cfg.HasToken() {
 			warnings = append(warnings, IncludeWarning{Label: label, Skipped: true})
@@ -205,7 +234,7 @@ func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project stri
 		included.SetJobOrigin(label)
 
 		if len(included.Include) > 0 {
-			w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
+			w, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited, depth+1)
 			warnings = append(warnings, w...)
 			extWarnings = append(extWarnings, ew...)
 		}
@@ -215,9 +244,11 @@ func resolveProjectInclude(p *model.Pipeline, entry map[string]any, project stri
 	return warnings, extWarnings
 }
 
-// resolveComponentInclude fetches a CI/CD catalog component and merges it into p.
+// resolveComponentInclude fetches a CI/CD catalog component, substitutes any
+// $[[ inputs.KEY ]] placeholders with values from `inputs` (the include's
+// with: block), and merges the result into p.
 // Returns (warning, extWarnings, true) if something went wrong; (zero, nil, false) on success.
-func resolveComponentInclude(p *model.Pipeline, ref string, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool) (IncludeWarning, []ExtendWarning, bool) {
+func resolveComponentInclude(p *model.Pipeline, ref string, inputs map[string]any, cfg fetcher.GitLabConfig, rootDir string, visited map[string]bool, depth int) (IncludeWarning, []ExtendWarning, bool) {
 	label := "component " + ref
 
 	if strings.ContainsRune(ref, '$') {
@@ -226,6 +257,12 @@ func resolveComponentInclude(p *model.Pipeline, ref string, cfg fetcher.GitLabCo
 			Err:   fmt.Errorf("component reference contains a CI variable that cannot be resolved at lint time"),
 		}, nil, true
 	}
+
+	visitKey := "component:" + ref
+	if visited[visitKey] {
+		return IncludeWarning{}, nil, false
+	}
+	visited[visitKey] = true
 
 	host, project, component, version, err := parseComponentRef(ref)
 	if err != nil {
@@ -238,6 +275,9 @@ func resolveComponentInclude(p *model.Pipeline, ref string, cfg fetcher.GitLabCo
 		return IncludeWarning{Label: label, Err: err}, nil, true
 	}
 
+	// Substitute $[[ inputs.KEY ]] placeholders with the values from with:.
+	data = substituteInputs(data, inputs)
+
 	included, err := model.ParseBytes(data)
 	if err != nil {
 		return IncludeWarning{Label: label, Err: fmt.Errorf("parsing component YAML: %w", err)}, nil, true
@@ -246,12 +286,51 @@ func resolveComponentInclude(p *model.Pipeline, ref string, cfg fetcher.GitLabCo
 
 	var extWarnings []ExtendWarning
 	if len(included.Include) > 0 {
-		_, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited)
+		_, ew := resolveIncludes(included, included.Include, cfg, rootDir, visited, depth+1)
 		extWarnings = append(extWarnings, ew...)
 	}
 
 	mergeIncluded(p, included)
 	return IncludeWarning{}, extWarnings, false
+}
+
+// substituteInputs replaces all $[[ inputs.KEY ]] and
+// $[[ inputs.KEY | default('…') ]] placeholders in data with the corresponding
+// values from inputs (the with: block of the component include entry).
+// Missing keys with no default become empty strings.
+// Missing keys with a default use the default value (single/double quotes stripped).
+func substituteInputs(data []byte, inputs map[string]any) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	return inputPlaceholderRe.ReplaceAllFunc(data, func(match []byte) []byte {
+		groups := inputPlaceholderRe.FindSubmatch(match)
+		if len(groups) < 2 {
+			return match
+		}
+		if val, ok := inputs[string(groups[1])]; ok {
+			return []byte(fmt.Sprintf("%v", val))
+		}
+		// Use the default value when the key is absent from inputs.
+		if len(groups) >= 3 && len(groups[2]) > 0 {
+			def := strings.TrimSpace(string(groups[2]))
+			if (strings.HasPrefix(def, "'") && strings.HasSuffix(def, "'")) ||
+				(strings.HasPrefix(def, `"`) && strings.HasSuffix(def, `"`)) {
+				def = def[1 : len(def)-1]
+			}
+			return []byte(def)
+		}
+		return []byte("")
+	})
+}
+
+// extractInputs returns the with: map from a component include entry, or nil.
+func extractInputs(entry map[string]any) map[string]any {
+	with, ok := entry["with"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return with
 }
 
 // parseComponentRef parses a CI/CD component reference of the form:

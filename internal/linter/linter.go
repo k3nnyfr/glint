@@ -55,6 +55,8 @@ func (f Finding) String() string {
 func Lint(p *model.Pipeline) []Finding {
 	var findings []Finding
 	findings = append(findings, checkStages(p)...)
+	findings = append(findings, checkDuplicateStages(p)...)
+	findings = append(findings, checkDefault(p)...)
 	findings = append(findings, checkWorkflow(p)...)
 	findings = append(findings, checkJobs(p)...)
 	findings = append(findings, checkNeeds(p)...)
@@ -83,6 +85,32 @@ func checkStages(p *model.Pipeline) []Finding {
 		})
 	}
 	return findings
+}
+
+// GL040: warn when a stage name appears more than once in stages:.
+func checkDuplicateStages(p *model.Pipeline) []Finding {
+	seen := make(map[string]bool, len(p.Stages))
+	var findings []Finding
+	for _, s := range p.Stages {
+		if seen[s] {
+			findings = append(findings, Finding{
+				Severity: Warning,
+				Rule:     RuleDuplicateStage,
+				File:     p.SourceFile,
+				Message:  fmt.Sprintf("stage %q appears more than once in 'stages'; GitLab silently merges duplicate stage entries", s),
+			})
+		}
+		seen[s] = true
+	}
+	return findings
+}
+
+// checkDefault validates the pipeline-level default: block.
+func checkDefault(p *model.Pipeline) []Finding {
+	if p.Default == nil {
+		return nil
+	}
+	return checkDefaultTimeout(p.Default.Timeout, p.SourceFile)
 }
 
 func checkWorkflow(p *model.Pipeline) []Finding {

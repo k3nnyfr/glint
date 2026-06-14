@@ -62,15 +62,15 @@ The current rule set covers the most common sources of broken pipelines. These a
 
 - ~~**Variable reference validation (GL032)**~~ — ✓ shipped v0.2.11; warns when a `rules:if:` expression references `$VAR` / `${VAR}` not declared anywhere in pipeline YAML; predefined GitLab namespaces (`CI_*`, `GITLAB_*`, …) exempt; variables from included files are also considered
 - ~~**`rules:if:` static reachability (GL033)**~~ — ✓ shipped v0.2.15; warns when every rule in a job's `rules:` block has `when: never`, making the job permanently excluded from any pipeline run; no `if:` evaluation required
-- **`services:` validation** — map form requires `name`; `alias` must be a valid DNS label
-- **`rules:changes` / `rules:exists`** — warn on glob patterns that can never match (e.g. absolute paths, double `**` on unsupported versions)
-- **`timeout` format** — must be a duration string GitLab understands (`1h 30m`, `90 minutes`, etc.)
-- **`id_tokens:` / `secrets:`** — presence and required-key checks
-- **`pages:publish`** — validate that the path is consistent with `artifacts.paths`
+- ~~**`services:` validation (GL034)**~~ — ✓ shipped v0.2.16; map form requires `name`; `alias` must be a valid DNS label
+- ~~**`rules:changes` / `rules:exists` absolute path detection (GL035)**~~ — ✓ shipped v0.2.16; warns when a path starts with `/`; GitLab CI paths are always relative to the repo root
+- ~~**`timeout` format validation (GL036)**~~ — ✓ shipped v0.2.16; validates job-level and `default.timeout` against recognised GitLab CI duration strings
+- ~~**`id_tokens:` / `secrets:` required-key checks (GL037, GL038)**~~ — ✓ shipped v0.2.16; `id_tokens` entries must have `aud`; `secrets` entries must declare a provider
+- ~~**`pages:publish` + `artifacts.paths` consistency (GL039)**~~ — ✓ shipped v0.2.16; warns when the publish directory is missing from `artifacts.paths`
+- ~~**Duplicate stage names (GL040)**~~ — ✓ shipped v0.2.16; warns when a stage appears more than once in `stages:`
+- ~~**`cache:key:files` must be exact paths (GL041)**~~ — ✓ shipped v0.2.16; warns when entries look like glob patterns
+- ~~**Unreachable jobs**~~ — covered by GL033 (shipped v0.2.15); every-`when:never` rules block is statically dead
 - **`inherit:` completeness** — flag when a job overrides a default field that would require `inherit: default: false` to suppress
-- **Unreachable jobs** — detect jobs that can never run because every `rules:` branch evaluates to `never` (static analysis only)
-- **Duplicate stage names** — GitLab silently merges them; warn to avoid confusion
-- **`cache:key:files`** — must be a list of paths, not a glob
 
 ---
 
@@ -78,20 +78,18 @@ The current rule set covers the most common sources of broken pipelines. These a
 
 - ~~**`include: local:`** full resolution~~ — ✓ shipped in v0.2.0; local files are read from disk, recursively resolved, and merged before linting
 - ~~**`include: remote:`** (URL)~~ — ✓ shipped post-v0.2.0; plain HTTPS URLs are fetched (unauthenticated), parsed, and merged; sub-includes are resolved recursively; unreachable URLs emit `[WARNING]` and linting continues
-- **Recursive include depth limit** — guard against include cycles across files
-- **Offline mode / cache** — persist fetched remote templates to a local cache directory; `--offline` flag to skip network calls and use only cached copies
-- **`include: inputs:`** — substitute CI component input values into fetched templates before merging, so component-scoped jobs get their correct `stage:` and keyword values
+- ~~**Recursive include depth limit**~~ — ✓ shipped v0.2.17; depth capped at 100 (matching GitLab); project/component includes now tracked in visited set to prevent cross-file cycles
+- ~~**Offline mode / cache**~~ — ✓ shipped v0.2.17; `--cache-dir DIR` persists fetched templates; `--offline` serves from cache only; default cache dir (`~/.cache/glint`) used automatically with `--offline`
+- ~~**`include: inputs:`**~~ — ✓ shipped v0.2.17; `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in fetched component YAML are substituted from the include's `with:` block before parsing
 
 ---
 
-## Output formats
+## Output formats — ✓ shipped v0.2.18
 
-Right now the only output is plain-text findings. Structured output enables integration with other tools.
-
-- **JSON** (`--format json`) — machine-readable findings with file, job, severity, rule ID, and message; stable schema
-- **SARIF** (`--format sarif`) — [Static Analysis Results Interchange Format](https://sarifweb.azurewebsites.net); consumed natively by GitHub Code Scanning and GitLab SAST
-- **JUnit XML** (`--format junit`) — lets CI pipelines publish lint results as a test report artifact
-- **GitHub / GitLab annotation format** — emit `::error file=…,line=…::message` lines so findings appear as inline comments in PR diffs
+- ~~**JSON** (`--format json`)~~ — ✓ shipped v0.2.18; machine-readable findings with stable schema (version 1)
+- ~~**SARIF** (`--format sarif`)~~ — ✓ shipped v0.2.18; SARIF 2.1.0; consumed natively by GitHub Code Scanning and GitLab SAST
+- ~~**JUnit XML** (`--format junit`)~~ — ✓ shipped v0.2.18; lets CI pipelines publish lint results as a test report artifact
+- ~~**GitHub annotation format** (`--format github`)~~ — ✓ shipped v0.2.18; emits `::error file=…,line=…,title=RULE::message` lines so findings appear as inline comments in PR diffs
 
 ---
 
@@ -147,7 +145,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18
 - **`--explain <rule-id>`** — print the rule description, rationale, and an example fix
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`

@@ -1,0 +1,116 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DEPLOY_ENV: staging
+
+# GL034: services — string form and map form with name are both valid
+service-string:
+  stage: build
+  script: [echo ok]
+  services:
+    - redis:latest
+    - postgres:14
+
+service-map:
+  stage: build
+  script: [echo ok]
+  services:
+    - name: postgres:14
+      alias: db
+    - name: redis:latest
+      alias: cache-svc
+
+# GL035: rules:changes/exists — relative paths are valid
+rules-relative:
+  stage: test
+  script: [echo test]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - src/**/*.go
+        - tests/*.go
+    - exists:
+        - Dockerfile
+        - docker-compose.yml
+      when: on_success
+
+# GL036: timeout — valid duration strings
+timeout-short:
+  stage: build
+  script: [echo build]
+  timeout: 30m
+
+timeout-long:
+  stage: build
+  script: [echo build]
+  timeout: 1h 30m
+
+timeout-words:
+  stage: test
+  script: [echo test]
+  timeout: 90 minutes
+
+timeout-combined:
+  stage: deploy
+  script: [echo deploy]
+  timeout: 2 hours 30 minutes
+
+# GL037: id_tokens — entry with valid aud
+token-job:
+  stage: build
+  script: [echo build]
+  id_tokens:
+    VAULT_TOKEN:
+      aud: https://vault.example.com
+    SIGSTORE_TOKEN:
+      aud: sigstore
+
+# GL038: secrets — valid provider keys
+secret-vault:
+  stage: deploy
+  script: [echo deploy]
+  secrets:
+    DB_PASSWORD:
+      vault: production/db/password@ops
+
+secret-gcp:
+  stage: deploy
+  script: [echo deploy]
+  secrets:
+    API_KEY:
+      gcp_secret_manager:
+        name: my-api-key
+        version: latest
+
+# GL039: pages keyword — publish dir present in artifacts.paths
+pages-keyword:
+  stage: deploy
+  script: [mkdocs build]
+  pages:
+    publish: site
+  artifacts:
+    paths:
+      - site
+
+pages-keyword-default:
+  stage: deploy
+  script: [make docs]
+  pages: true
+  artifacts:
+    paths:
+      - public
+
+# GL040: no duplicate stages (unique stages defined above)
+
+# GL041: cache.key.files — list of exact paths
+cache-key-job:
+  stage: build
+  script: [echo build]
+  cache:
+    key:
+      files:
+        - go.sum
+        - go.mod

@@ -8,6 +8,15 @@ import (
 	"git.k3nny.fr/glint/internal/model"
 )
 
+// dnsLabelPattern matches a valid hostname label: starts and ends with
+// alphanumeric, middle may contain hyphens and dots; max 63 chars per label.
+var dnsLabelPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$`)
+
+// timeoutPattern matches a GitLab CI duration string: one or more pairs of
+// "<number> <unit>" where unit is a recognised time word or abbreviation.
+var timeoutPattern = regexp.MustCompile(
+	`(?i)^\s*(\d+\s*(weeks?|w|days?|d|hours?|h|minutes?|mins?|m|seconds?|secs?|s)\s*)+$`)
+
 var validJobWhen = map[string]bool{
 	"on_success": true,
 	"on_failure": true,
@@ -98,6 +107,13 @@ func checkJobKeywords(name string, job model.Job) []Finding {
 	findings = append(findings, checkDeadRules(name, job)...)
 	findings = append(findings, checkImage(name, job)...)
 	findings = append(findings, checkInherit(name, job)...)
+	findings = append(findings, checkServices(name, job)...)
+	findings = append(findings, checkRulesGlobs(name, job)...)
+	findings = append(findings, checkTimeout(name, job)...)
+	findings = append(findings, checkIDTokens(name, job)...)
+	findings = append(findings, checkSecrets(name, job)...)
+	findings = append(findings, checkPagesKeyword(name, job)...)
+	findings = append(findings, checkCacheKeyFiles(name, job)...)
 	return findings
 }
 
@@ -402,8 +418,9 @@ func checkArtifacts(name string, job model.Job) []Finding {
 			})
 		}
 	}
-	// Pages job should publish to public/
-	if name == "pages" {
+	// Pages job should publish to public/. Skip when pages: keyword is set;
+	// GL039 (checkPagesKeyword) handles that case with a more precise check.
+	if name == "pages" && job.Pages == nil {
 		if paths, ok := m["paths"].([]any); ok {
 			found := false
 			for _, p := range paths {
@@ -543,6 +560,292 @@ func checkInherit(name string, job model.Job) []Finding {
 				Job:      name,
 				Message:  fmt.Sprintf("'inherit.%s' must be a boolean or a list of names", key),
 			})
+		}
+	}
+	return findings
+}
+
+// GL034: services: map form requires 'name'; 'alias' must be a valid DNS label.
+func checkServices(name string, job model.Job) []Finding {
+	if len(job.Services) == 0 {
+		return nil
+	}
+	var findings []Finding
+	for i, svc := range job.Services {
+		m, ok := svc.(map[string]any)
+		if !ok {
+			continue // string form is valid
+		}
+		n := m["name"]
+		if n == nil || n == "" {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidService,
+				Job:      name,
+				Message:  fmt.Sprintf("services[%d]: map form requires a 'name' key", i),
+			})
+		}
+		if alias, ok := m["alias"].(string); ok && alias != "" {
+			if !dnsLabelPattern.MatchString(alias) {
+				findings = append(findings, Finding{
+					Severity: Error,
+					Rule:     RuleInvalidService,
+					Job:      name,
+					Message:  fmt.Sprintf("services[%d]: alias %q is not a valid DNS label (only letters, digits, hyphens, and dots; must start and end with alphanumeric)", i, alias),
+				})
+			}
+		}
+	}
+	return findings
+}
+
+// GL035: rules:changes and rules:exists paths must not be absolute.
+func checkRulesGlobs(name string, job model.Job) []Finding {
+	var findings []Finding
+	for i, rule := range job.Rules {
+		findings = append(findings, checkAbsolutePaths(name, fmt.Sprintf("rules[%d].changes", i), rule.Changes)...)
+		findings = append(findings, checkAbsolutePaths(name, fmt.Sprintf("rules[%d].exists", i), rule.Exists)...)
+	}
+	return findings
+}
+
+func checkAbsolutePaths(name, field string, val any) []Finding {
+	var paths []string
+	switch v := val.(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				paths = append(paths, s)
+			}
+		}
+	case map[string]any:
+		if ps, ok := v["paths"].([]any); ok {
+			for _, item := range ps {
+				if s, ok := item.(string); ok {
+					paths = append(paths, s)
+				}
+			}
+		}
+	}
+	var findings []Finding
+	for _, p := range paths {
+		if strings.HasPrefix(p, "/") {
+			findings = append(findings, Finding{
+				Severity: Warning,
+				Rule:     RuleAbsoluteGlobPath,
+				Job:      name,
+				Message:  fmt.Sprintf("%s: path %q is absolute; GitLab CI paths are relative to the repository root — absolute paths will never match", field, p),
+			})
+		}
+	}
+	return findings
+}
+
+// GL036: timeout: must be a valid GitLab CI duration string.
+func checkTimeout(name string, job model.Job) []Finding {
+	if job.Timeout == "" {
+		return nil
+	}
+	if !timeoutPattern.MatchString(job.Timeout) {
+		return []Finding{{
+			Severity: Error,
+			Rule:     RuleInvalidTimeout,
+			Job:      name,
+			Message:  fmt.Sprintf("'timeout' has invalid value %q; expected a duration like '1h 30m', '90 minutes', '2 hours'", job.Timeout),
+		}}
+	}
+	return nil
+}
+
+// CheckDefaultTimeout validates the pipeline-level default: timeout: field.
+// Exported so it can be called from linter.go.
+func checkDefaultTimeout(timeout, file string) []Finding {
+	if timeout == "" {
+		return nil
+	}
+	if !timeoutPattern.MatchString(timeout) {
+		return []Finding{{
+			Severity: Error,
+			Rule:     RuleInvalidTimeout,
+			File:     file,
+			Message:  fmt.Sprintf("'default.timeout' has invalid value %q; expected a duration like '1h 30m', '90 minutes', '2 hours'", timeout),
+		}}
+	}
+	return nil
+}
+
+// GL037: id_tokens: each entry must have an 'aud' key.
+func checkIDTokens(name string, job model.Job) []Finding {
+	if job.IDTokens == nil {
+		return nil
+	}
+	m, ok := job.IDTokens.(map[string]any)
+	if !ok {
+		return nil
+	}
+	var findings []Finding
+	for tokenName, tokenVal := range m {
+		tokenMap, ok := tokenVal.(map[string]any)
+		if !ok {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidIDToken,
+				Job:      name,
+				Message:  fmt.Sprintf("id_tokens.%s: must be a map with an 'aud' key", tokenName),
+			})
+			continue
+		}
+		if _, hasAud := tokenMap["aud"]; !hasAud {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidIDToken,
+				Job:      name,
+				Message:  fmt.Sprintf("id_tokens.%s: missing required 'aud' key", tokenName),
+			})
+		}
+	}
+	return findings
+}
+
+// GL038: secrets: each entry must have a provider key (vault, gcp_secret_manager, azure_key_vault).
+func checkSecrets(name string, job model.Job) []Finding {
+	if job.Secrets == nil {
+		return nil
+	}
+	m, ok := job.Secrets.(map[string]any)
+	if !ok {
+		return nil
+	}
+	validProviders := []string{"vault", "gcp_secret_manager", "azure_key_vault"}
+	var findings []Finding
+	for secretName, secretVal := range m {
+		secretMap, ok := secretVal.(map[string]any)
+		if !ok {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidSecret,
+				Job:      name,
+				Message:  fmt.Sprintf("secrets.%s: must be a map with a provider key (vault, gcp_secret_manager, or azure_key_vault)", secretName),
+			})
+			continue
+		}
+		hasProvider := false
+		for _, provider := range validProviders {
+			if _, ok := secretMap[provider]; ok {
+				hasProvider = true
+				break
+			}
+		}
+		if !hasProvider {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidSecret,
+				Job:      name,
+				Message:  fmt.Sprintf("secrets.%s: missing provider key; must include one of: vault, gcp_secret_manager, azure_key_vault", secretName),
+			})
+		}
+	}
+	return findings
+}
+
+// GL039: a job with the pages: keyword must have the publish directory in artifacts.paths.
+func checkPagesKeyword(name string, job model.Job) []Finding {
+	if job.Pages == nil {
+		return nil
+	}
+	publishDir := "public"
+	if m, ok := job.Pages.(map[string]any); ok {
+		if p, ok := m["publish"].(string); ok && p != "" {
+			publishDir = p
+		}
+	}
+	if job.Artifacts == nil {
+		return []Finding{{
+			Severity: Warning,
+			Rule:     RulePagesPublish,
+			Job:      name,
+			Message:  fmt.Sprintf("job uses 'pages:' keyword with publish dir %q but has no 'artifacts:' block — GitLab Pages will not deploy", publishDir),
+		}}
+	}
+	m, ok := job.Artifacts.(map[string]any)
+	if !ok {
+		return nil
+	}
+	paths, ok := m["paths"].([]any)
+	if !ok || len(paths) == 0 {
+		return []Finding{{
+			Severity: Warning,
+			Rule:     RulePagesPublish,
+			Job:      name,
+			Message:  fmt.Sprintf("job uses 'pages:' keyword with publish dir %q but 'artifacts.paths' is missing — GitLab Pages will not deploy", publishDir),
+		}}
+	}
+	for _, p := range paths {
+		if s, ok := p.(string); ok && (s == publishDir || strings.HasPrefix(s, publishDir+"/")) {
+			return nil
+		}
+	}
+	return []Finding{{
+		Severity: Warning,
+		Rule:     RulePagesPublish,
+		Job:      name,
+		Message:  fmt.Sprintf("'pages.publish' is %q but 'artifacts.paths' does not include it — GitLab Pages will not deploy", publishDir),
+	}}
+}
+
+// GL041: cache.key.files must be a list of exact file paths, not glob patterns.
+func checkCacheKeyFiles(name string, job model.Job) []Finding {
+	if job.Cache == nil {
+		return nil
+	}
+	var maps []map[string]any
+	switch v := job.Cache.(type) {
+	case map[string]any:
+		maps = []map[string]any{v}
+	case []any:
+		for _, item := range v {
+			if m, ok := item.(map[string]any); ok {
+				maps = append(maps, m)
+			}
+		}
+	}
+	var findings []Finding
+	for _, m := range maps {
+		keyVal, ok := m["key"]
+		if !ok {
+			continue
+		}
+		keyMap, ok := keyVal.(map[string]any)
+		if !ok {
+			continue
+		}
+		filesVal, ok := keyMap["files"]
+		if !ok {
+			continue
+		}
+		filesList, ok := filesVal.([]any)
+		if !ok {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidCacheKeyFiles,
+				Job:      name,
+				Message:  "'cache.key.files' must be a list of file paths",
+			})
+			continue
+		}
+		for _, item := range filesList {
+			s, ok := item.(string)
+			if !ok {
+				continue
+			}
+			if strings.ContainsAny(s, "*?[") {
+				findings = append(findings, Finding{
+					Severity: Warning,
+					Rule:     RuleInvalidCacheKeyFiles,
+					Job:      name,
+					Message:  fmt.Sprintf("cache.key.files: %q looks like a glob pattern; 'key.files' must be exact file paths, not globs", s),
+				})
+			}
 		}
 	}
 	return findings

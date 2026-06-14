@@ -19,6 +19,18 @@ import (
 // version is set at build time via -ldflags "-X main.version=vX.Y.Z".
 var version = "dev"
 
+// defaultCacheDir returns the platform-default glint cache directory:
+// $XDG_CACHE_HOME/glint or ~/.cache/glint.
+func defaultCacheDir() string {
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+		return filepath.Join(xdg, "glint")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".cache", "glint")
+	}
+	return ""
+}
+
 const globalUsage = `glint: Lint and visualise GitLab CI pipelines locally.
 
 Usage: glint [OPTIONS] <COMMAND>
@@ -68,6 +80,9 @@ func cmdCheck(args []string) {
 	fs := flag.NewFlagSet("glint check", flag.ExitOnError)
 	token := fs.String("token", "", "GitLab personal access token (overrides GITLAB_TOKEN)")
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
+	cacheDir := fs.String("cache-dir", "", "directory to cache fetched remote includes (created if needed)")
+	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
+	format := fs.String("format", "text", "output format: text, json, sarif, junit, github")
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
 	source := fs.String("source", "", "set CI_PIPELINE_SOURCE")
@@ -87,6 +102,10 @@ Arguments:
   <PIPELINE>  Path to the .gitlab-ci.yml file to lint
 
 Options:
+      --format <FORMAT>
+          Output format for findings.
+          [default: text] [possible values: text, json, sarif, junit, github]
+
       --token <TOKEN>
           GitLab personal access token. Required to fetch project: includes;
           component: includes are attempted unauthenticated.
@@ -95,6 +114,17 @@ Options:
       --gitlab-url <URL>
           GitLab instance URL.
           [env: CI_SERVER_URL | GITLAB_URL] [default: https://gitlab.com]
+
+      --cache-dir <DIR>
+          Cache fetched remote templates (project: and component: includes) in
+          DIR. The directory is created on first use. Subsequent runs read from
+          cache first, avoiding repeated network calls.
+
+      --offline
+          Do not make any network calls. All remote includes must already be
+          present in --cache-dir; missing entries emit a warning (same as
+          having no token). Implies the default cache dir (~/.cache/glint) when
+          --cache-dir is not set.
 
       --branch <NAME>
           Simulate a branch push. Populates: CI_COMMIT_BRANCH,
@@ -127,6 +157,10 @@ always evaluated.
 
 Examples:
   glint check .gitlab-ci.yml
+  glint check --format json .gitlab-ci.yml
+  glint check --format sarif .gitlab-ci.yml | upload-to-github-code-scanning
+  glint check --format junit .gitlab-ci.yml > junit.xml
+  glint check --format github .gitlab-ci.yml
   glint check --branch develop .gitlab-ci.yml
   glint check --tag v1.0.0 .gitlab-ci.yml
   glint check --source merge_request_event .gitlab-ci.yml
@@ -134,6 +168,8 @@ Examples:
   GITLAB_TOKEN=glpat-xxxx glint check .gitlab-ci.yml
   glint check --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
   glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
+  glint check --cache-dir ~/.cache/glint .gitlab-ci.yml
+  glint check --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
 `)
 	}
 	_ = fs.Parse(args)
@@ -144,13 +180,27 @@ Examples:
 		*source = "push"
 	}
 
+	validFormats := map[string]bool{
+		"text": true, "json": true, "sarif": true, "junit": true, "github": true,
+	}
+	if !validFormats[*format] {
+		fmt.Fprintf(os.Stderr, "glint: unknown format %q; valid: text, json, sarif, junit, github\n", *format)
+		os.Exit(2)
+	}
+
 	if fs.NArg() != 1 {
 		fs.Usage()
 		os.Exit(2)
 	}
 	path := fs.Arg(0)
 
-	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token)
+	// --offline with no explicit --cache-dir defaults to ~/.cache/glint.
+	resolvedCacheDir := *cacheDir
+	if *offline && resolvedCacheDir == "" {
+		resolvedCacheDir = defaultCacheDir()
+	}
+
+	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token, resolvedCacheDir, *offline)
 
 	p, err := model.Parse(path)
 	if err != nil {
@@ -182,32 +232,43 @@ Examples:
 	if *listVars {
 		printVars(p, ctx)
 	}
-	if !ctx.IsEmpty() {
+	// Context summary only makes sense in plain-text output; suppress it in
+	// structured formats so stdout contains only the machine-readable payload.
+	if !ctx.IsEmpty() && *format == "text" {
 		printContext(p, ctx)
 	}
 
 	findings := linter.Lint(p)
-	hasErrors := false
-	for _, f := range findings {
-		fmt.Println(f)
-		if f.Severity == linter.Error {
-			hasErrors = true
+	errCount, _ := countSeverities(findings)
+
+	// In structured formats the summary line goes to stderr so stdout is clean.
+	summaryOut := os.Stdout
+	if *format != "text" {
+		summaryOut = os.Stderr
+	}
+
+	switch *format {
+	case "json":
+		writeJSON(os.Stdout, findings, path)
+	case "sarif":
+		writeSARIF(os.Stdout, findings, path)
+	case "junit":
+		writeJUnit(os.Stdout, findings, path)
+	case "github":
+		writeGitHub(os.Stdout, findings)
+	default: // "text"
+		for _, f := range findings {
+			fmt.Println(f)
 		}
 	}
 
 	if len(findings) == 0 {
-		fmt.Printf("OK: %s — no issues found (%d job(s), %d stage(s))\n", path, len(p.Jobs), len(p.Stages))
+		fmt.Fprintf(summaryOut, "OK: %s — no issues found (%d job(s), %d stage(s))\n", path, len(p.Jobs), len(p.Stages))
 	} else {
-		errCount := 0
-		for _, f := range findings {
-			if f.Severity == linter.Error {
-				errCount++
-			}
-		}
-		fmt.Printf("%d finding(s): %d error(s)\n", len(findings), errCount)
+		fmt.Fprintf(summaryOut, "%d finding(s): %d error(s)\n", len(findings), errCount)
 	}
 
-	if hasErrors {
+	if errCount > 0 {
 		os.Exit(1)
 	}
 }
@@ -227,6 +288,8 @@ func cmdGraph(args []string) {
 	fs := flag.NewFlagSet("glint graph", flag.ExitOnError)
 	token := fs.String("token", "", "GitLab personal access token (overrides GITLAB_TOKEN)")
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
+	cacheDir := fs.String("cache-dir", "", "directory to cache fetched remote includes (created if needed)")
+	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
 	out := fs.String("out", "glint-out", "output directory for Mermaid graph files (pipeline mode)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
@@ -315,7 +378,12 @@ Examples:
 	}
 	path := fs.Arg(0)
 
-	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token)
+	resolvedCacheDir := *cacheDir
+	if *offline && resolvedCacheDir == "" {
+		resolvedCacheDir = defaultCacheDir()
+	}
+
+	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token, resolvedCacheDir, *offline)
 
 	p, err := model.Parse(path)
 	if err != nil {

@@ -177,7 +177,7 @@ func (b *treeBuilder) recurseRemote(node *treeNode, rawURL string) {
 	}
 	b.visited[key] = true
 
-	data, err := fetcher.FetchURL(rawURL)
+	data, err := b.cfg.FetchURL(rawURL)
 	if err != nil {
 		return
 	}

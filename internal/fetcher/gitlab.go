@@ -22,9 +22,11 @@ const (
 
 // GitLabConfig holds everything needed to reach a GitLab instance.
 type GitLabConfig struct {
-	BaseURL string
-	Token   string
-	Source  TokenSource
+	BaseURL  string
+	Token    string
+	Source   TokenSource
+	CacheDir string // local cache directory; empty = caching disabled
+	Offline  bool   // when true, return an error instead of making network calls
 }
 
 // AutoConfig builds a GitLabConfig from environment variables.
@@ -54,8 +56,11 @@ func AutoConfig() GitLabConfig {
 	return cfg
 }
 
-// WithOverrides returns a copy of cfg with non-empty overrides applied.
-func (cfg GitLabConfig) WithOverrides(baseURL, token string) GitLabConfig {
+// WithOverrides returns a copy of cfg with the provided overrides applied.
+// Non-empty strings overwrite the corresponding field; booleans are always
+// applied (so offline: false explicitly clears offline mode).
+// cacheDir: empty string disables caching.
+func (cfg GitLabConfig) WithOverrides(baseURL, token, cacheDir string, offline bool) GitLabConfig {
 	if baseURL != "" {
 		cfg.BaseURL = strings.TrimRight(baseURL, "/")
 	}
@@ -63,6 +68,8 @@ func (cfg GitLabConfig) WithOverrides(baseURL, token string) GitLabConfig {
 		cfg.Token = token
 		cfg.Source = TokenPrivate
 	}
+	cfg.CacheDir = cacheDir
+	cfg.Offline = offline
 	return cfg
 }
 
@@ -84,15 +91,23 @@ func (cfg GitLabConfig) HasToken() bool { return cfg.Token != "" }
 //   - filePath — repository file path, e.g. "/templates/ci.yml"
 //   - ref      — branch, tag, or commit SHA; empty string defaults to HEAD
 func (cfg GitLabConfig) FetchFile(project, filePath, ref string) ([]byte, error) {
+	if ref == "" {
+		ref = "HEAD"
+	}
+
+	cKey := cfg.BaseURL + "|" + project + "|" + filePath + "|" + ref
+	if data, ok := cacheRead(cfg.CacheDir, cKey); ok {
+		return data, nil
+	}
+	if cfg.Offline {
+		return nil, fmt.Errorf("offline mode: %s:%s@%s is not in the local cache (run without --offline first to populate the cache)", project, filePath, ref)
+	}
+
 	encodedProject := url.PathEscape(project)
 	encodedFile := url.PathEscape(strings.TrimPrefix(filePath, "/"))
 
 	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/repository/files/%s/raw",
 		cfg.BaseURL, encodedProject, encodedFile)
-
-	if ref == "" {
-		ref = "HEAD"
-	}
 
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -139,12 +154,21 @@ func (cfg GitLabConfig) FetchFile(project, filePath, ref string) ([]byte, error)
 		}
 	}
 
+	cacheWrite(cfg.CacheDir, cKey, body)
 	return body, nil
 }
 
 // FetchURL downloads the content at a plain HTTPS URL without authentication.
 // Used for include: remote: entries which are public by definition.
-func FetchURL(rawURL string) ([]byte, error) {
+// Responses are read from and written to the local cache when CacheDir is set.
+func (cfg GitLabConfig) FetchURL(rawURL string) ([]byte, error) {
+	if data, ok := cacheRead(cfg.CacheDir, rawURL); ok {
+		return data, nil
+	}
+	if cfg.Offline {
+		return nil, fmt.Errorf("offline mode: %s is not in the local cache (run without --offline first to populate the cache)", rawURL)
+	}
+
 	resp, err := http.Get(rawURL) //nolint:noctx
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", rawURL, err)
@@ -157,6 +181,7 @@ func FetchURL(rawURL string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s: status %d", rawURL, resp.StatusCode)
 	}
+	cacheWrite(cfg.CacheDir, rawURL, body)
 	return body, nil
 }
 

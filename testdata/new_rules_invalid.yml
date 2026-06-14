@@ -1,0 +1,81 @@
+stages:
+  - build
+  - test
+  - test
+
+variables:
+  DEPLOY_ENV: staging
+
+# GL040: duplicate stage "test" above triggers a warning
+
+# GL034: services map form missing name
+service-no-name:
+  stage: build
+  script: [echo ok]
+  services:
+    - alias: my-svc
+
+# GL034: services map form with invalid alias (contains spaces)
+service-bad-alias:
+  stage: build
+  script: [echo ok]
+  services:
+    - name: redis:latest
+      alias: "my bad alias"
+
+# GL035: rules:changes with absolute path
+absolute-changes:
+  stage: test
+  script: [echo test]
+  rules:
+    - changes:
+        - /src/main.go
+
+# GL035: rules:exists with absolute path
+absolute-exists:
+  stage: test
+  script: [echo test]
+  rules:
+    - exists:
+        - /Dockerfile
+
+# GL036: invalid timeout format
+bad-timeout:
+  stage: build
+  script: [echo build]
+  timeout: forever
+
+# GL037: id_tokens entry missing aud
+bad-token:
+  stage: test
+  script: [echo test]
+  id_tokens:
+    MY_TOKEN:
+      expire: 3600
+
+# GL038: secrets entry missing provider
+bad-secret:
+  stage: test
+  script: [echo test]
+  secrets:
+    DB_PASSWORD:
+      expire: 3600
+
+# GL039: pages keyword but publish dir not in artifacts.paths
+bad-pages:
+  stage: build
+  script: [mkdocs build]
+  pages:
+    publish: dist
+  artifacts:
+    paths:
+      - public
+
+# GL041: cache.key.files contains a glob
+bad-cache-glob:
+  stage: build
+  script: [echo build]
+  cache:
+    key:
+      files:
+        - "*.sum"

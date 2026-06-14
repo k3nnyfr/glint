@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.15-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.18-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -31,6 +31,18 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Variable expansion** — `$VAR` and `${VAR}` references inside variable values are expanded after all sources are merged (pipeline defaults → workflow-rule overrides → CLI flags); transitive chains resolve automatically; visible via `--list-vars`
 - **Non-string variable scalars** — `BUILD: true`, `RETRIES: 3` and other bare boolean/integer variable values are handled correctly throughout: they render in `--list-vars` output and are injected into the evaluation context as their string equivalents, matching GitLab CI's behaviour
 - **Static reachability (GL033)** — warns when a job's `rules:` block can never activate: if every rule has `when: never` the job is permanently excluded from any pipeline run, provable without evaluating any `if:` expressions
+- **`services:` validation (GL034)** — map form requires a `name` key; `alias` must be a valid DNS label (letters, digits, hyphens, dots; no leading/trailing hyphens)
+- **`rules:changes` / `rules:exists` glob safety (GL035)** — warns when paths are absolute (start with `/`), which can never match since GitLab CI paths are always relative to the repository root
+- **`timeout:` format (GL036)** — validates that job and `default:` timeout values are valid GitLab CI duration strings (`1h 30m`, `90 minutes`, `2 hours`, etc.)
+- **`id_tokens:` validation (GL037)** — each OIDC token entry must have an `aud` key (missing `aud` is a GitLab API error at runtime)
+- **`secrets:` validation (GL038)** — each secret entry must declare exactly one provider (`vault`, `gcp_secret_manager`, or `azure_key_vault`)
+- **`pages:` keyword + `artifacts.paths` (GL039)** — warns when a job uses the `pages:` keyword but `artifacts.paths` does not include the publish directory (default: `public`)
+- **Duplicate stage names (GL040)** — warns when a stage name appears more than once in `stages:`; GitLab silently merges duplicates, which can cause confusing ordering
+- **`cache.key.files` glob detection (GL041)** — warns when `cache.key.files` entries contain glob metacharacters; this field requires exact file paths, not patterns
+- **Recursive include depth limit** — include chains are capped at 100 nesting levels (matching GitLab's own limit); project and component includes are now tracked in the visited-file set to prevent cross-include cycles
+- **`include: inputs:` substitution** — when a `component:` entry has a `with:` block, all `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in the fetched template are substituted before parsing, so component-scoped jobs get their correct `stage:` and keyword values instead of `$[[…]]` placeholders
+- **Offline mode + include cache** — pass `--cache-dir DIR` to cache fetched remote templates (project: and component: includes) to disk; `--offline` serves entirely from the cache without making network calls
+- **Structured output formats** — `--format json` emits a stable JSON report; `--format sarif` emits SARIF 2.1.0 (consumed by GitHub Code Scanning and GitLab SAST); `--format junit` emits JUnit XML (consumable as a CI test-report artifact); `--format github` emits GitHub Actions annotation lines (`::error file=…::`) so findings appear as inline PR comments
 - **Sorted findings output** — findings are sorted by source file then line number, so all issues from the same file appear together in order; pipeline-level findings (no file) sort first
 - **Consistent ruff-style warnings** — all warnings (unresolvable includes, skipped extends chains, workflow non-start) use the same `path: [warning] message` format as lint findings
 - **`--version` / `-v` flag** — prints the compiled version string (e.g. `glint v0.2.14`); the version is also shown at the top of every `--help` output
@@ -76,6 +88,50 @@ glint check .gitlab-ci.yml
 
 Exits `0` when no errors are found, `1` when at least one error is reported.
 
+### Output formats
+
+Pass `--format` to control the output. Plain text is the default.
+
+```bash
+# Default: ruff-style text (human-readable)
+glint check .gitlab-ci.yml
+
+# JSON — stable schema, machine-readable
+glint check --format json .gitlab-ci.yml
+
+# SARIF 2.1.0 — GitHub Code Scanning / GitLab SAST
+glint check --format sarif .gitlab-ci.yml > glint.sarif
+
+# JUnit XML — CI test-report artifact (GitLab: artifacts:reports:junit)
+glint check --format junit .gitlab-ci.yml > glint-junit.xml
+
+# GitHub Actions annotations — inline PR diff comments
+glint check --format github .gitlab-ci.yml
+```
+
+In structured formats (`json`, `sarif`, `junit`, `github`) the summary line
+(`OK: … no issues found` or `N finding(s): M error(s)`) is written to stderr
+so stdout contains only the machine-readable payload.
+
+**JSON schema (`schema_version: 1`):**
+```json
+{
+  "schema_version": 1,
+  "glint_version": "v0.2.18",
+  "pipeline": ".gitlab-ci.yml",
+  "findings": [
+    {"rule":"GL004","severity":"error","file":".gitlab-ci.yml","line":14,
+     "job":"deploy","message":"stage \"production\" is not defined in 'stages'"}
+  ],
+  "summary": {"total": 1, "errors": 1, "warnings": 0}
+}
+```
+
+**GitHub annotation lines:**
+```
+::error file=.gitlab-ci.yml,line=14,title=GL004::job "deploy": stage "production" is not defined in 'stages'
+```
+
 ### Remote project includes
 
 Pipelines that include templates from other GitLab projects are supported.
@@ -97,6 +153,24 @@ glint check --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-c
 
 **Project includes** require a token; without one they are skipped with a
 warning and the rest of the pipeline is linted as-is.
+
+### Include cache and offline mode
+
+Pass `--cache-dir` to cache fetched remote templates so repeated runs skip the network:
+
+```bash
+# First run: fetches and caches
+glint check --cache-dir ~/.cache/glint .gitlab-ci.yml
+
+# Subsequent runs: served from cache
+glint check --cache-dir ~/.cache/glint .gitlab-ci.yml
+
+# Fully offline (uses ~/.cache/glint automatically when --cache-dir is absent)
+glint check --offline .gitlab-ci.yml
+glint check --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
+```
+
+Cache entries are keyed by SHA-256 of the full request URL/coordinates and stored as plain YAML files in the cache directory. There is currently no automatic expiry — delete the directory or individual entries to force a fresh fetch.
 
 **Component includes** (`include: component: ...`) attempt the fetch
 unauthenticated, so public [CI/CD Catalog](https://gitlab.com/explore/catalog)
@@ -264,6 +338,8 @@ Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filte
 |----|----------|------|
 | GL002 | ERROR | `workflow.rules[*].when` is not `always` or `never` |
 | GL001 | WARNING | No `stages` defined (GitLab falls back to default stages) |
+| GL036 | ERROR | `default.timeout` is not a valid GitLab CI duration string |
+| GL040 | WARNING | A stage name appears more than once in `stages:` |
 
 ### Job-level — structure
 
@@ -298,6 +374,12 @@ Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filte
 | GL024 | ERROR | `rules[*].when` is not one of the valid `when` values |
 | GL025 | ERROR | `image` map form missing `name` key |
 | GL026 | ERROR | `inherit.default` / `inherit.variables` is not a boolean or list |
+| GL034 | ERROR | `services:` map form missing `name`, or `alias` is not a valid DNS label |
+| GL036 | ERROR | `timeout:` is not a valid GitLab CI duration string (e.g. `1h 30m`, `90 minutes`) |
+| GL037 | ERROR | `id_tokens:` entry is missing the required `aud` key |
+| GL038 | ERROR | `secrets:` entry is missing a provider key (`vault`, `gcp_secret_manager`, or `azure_key_vault`) |
+| GL039 | WARNING | Job has `pages:` keyword but `artifacts.paths` does not include the publish directory |
+| GL041 | WARNING | `cache.key.files` entry looks like a glob pattern; must be an exact file path |
 
 ### Cross-job graph
 
@@ -315,6 +397,7 @@ Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filte
 |----|----------|------|
 | GL032 | WARNING | `rules:if:` references `$VAR` not declared in `variables:` (pipeline, job, or `workflow:rules:variables:`) — may be a false positive for variables set in GitLab CI/CD project settings |
 | GL033 | WARNING | Every rule in `rules:` has `when: never` — job is permanently excluded from the pipeline (statically provable without context) |
+| GL035 | WARNING | `rules:changes` / `rules:exists` path is absolute; GitLab CI paths are relative to the repo root — absolute paths will never match |
 
 ### Hidden jobs (templates)
 

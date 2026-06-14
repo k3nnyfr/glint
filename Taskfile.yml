@@ -83,12 +83,24 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/dead_rules.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/new_rules_valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/new_rules_invalid.yml
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-coverage.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-private.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check --format json testdata/valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --format sarif testdata/valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --format junit testdata/valid.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check --format github testdata/invalid.yml
+        ignore_error: true
 
   lint-go:
     desc: Run go vet on all packages
