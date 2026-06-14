@@ -1,0 +1,15 @@
+stages:
+  - build
+
+# glint: ignore GL007
+suppressed-job:
+  stage: build
+  only:
+    - main
+  script: echo ok
+
+still-flagged-job:
+  stage: build
+  only:
+    - main
+  script: echo ok

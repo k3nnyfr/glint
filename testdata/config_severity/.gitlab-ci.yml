@@ -1,0 +1,8 @@
+stages:
+  - build
+
+# GL004 (undefined stage) is demoted to warning by .glint.yml, so the exit
+# code must be 0 even though there is a finding.
+bad-stage-job:
+  stage: nonexistent
+  script: echo hi

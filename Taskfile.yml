@@ -101,6 +101,12 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check --format github testdata/invalid.yml
         ignore_error: true
+      - cmd: ./{{.BINARY}} check testdata/config_ignored/.gitlab-ci.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/config_severity/.gitlab-ci.yml
+        ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/config_suppress/.gitlab-ci.yml
+        ignore_error: false
 
   lint-go:
     desc: Run go vet on all packages

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"git.k3nny.fr/glint/internal/cicontext"
+	"git.k3nny.fr/glint/internal/config"
 	"git.k3nny.fr/glint/internal/fetcher"
 	"git.k3nny.fr/glint/internal/graph"
 	"git.k3nny.fr/glint/internal/linter"
@@ -193,14 +194,34 @@ Examples:
 		os.Exit(2)
 	}
 	path := fs.Arg(0)
+	rootDir := filepath.Dir(filepath.Clean(path))
 
-	// --offline with no explicit --cache-dir defaults to ~/.cache/glint.
+	// Load project config (.glint.yml), searching from the pipeline directory
+	// up to the git root.
+	glintCfg, cfgErr := config.Load(rootDir)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "%s: [warning] %s: %v\n", path, config.Filename, cfgErr)
+	}
+
+	// CLI flags take priority over config file values, which take priority over
+	// environment variables (read by AutoConfig).
+	fetcherToken := *token
+	if fetcherToken == "" {
+		fetcherToken = glintCfg.Token
+	}
+	fetcherURL := *gitlabURL
+	if fetcherURL == "" {
+		fetcherURL = glintCfg.URL
+	}
 	resolvedCacheDir := *cacheDir
+	if resolvedCacheDir == "" {
+		resolvedCacheDir = glintCfg.CacheDir
+	}
 	if *offline && resolvedCacheDir == "" {
 		resolvedCacheDir = defaultCacheDir()
 	}
 
-	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token, resolvedCacheDir, *offline)
+	cfg := fetcher.AutoConfig().WithOverrides(fetcherURL, fetcherToken, resolvedCacheDir, *offline)
 
 	p, err := model.Parse(path)
 	if err != nil {
@@ -208,7 +229,19 @@ Examples:
 		os.Exit(2)
 	}
 
-	rootDir := filepath.Dir(filepath.Clean(path))
+	// Merge config-defined stages into the pipeline before linting so that
+	// GL004 does not fire for jobs in stages declared only in .glint.yml.
+	stageSet := make(map[string]bool, len(p.Stages))
+	for _, s := range p.Stages {
+		stageSet[s] = true
+	}
+	for _, s := range glintCfg.Stages {
+		if !stageSet[s] {
+			p.Stages = append(p.Stages, s)
+			stageSet[s] = true
+		}
+	}
+
 	warnings, _ := resolver.ResolveIncludes(p, cfg, rootDir)
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "%s: [warning] include %s\n", path, w)
@@ -239,6 +272,7 @@ Examples:
 	}
 
 	findings := linter.Lint(p)
+	findings = applyConfig(findings, glintCfg, p.Suppressions)
 	errCount, _ := countSeverities(findings)
 
 	// In structured formats the summary line goes to stderr so stdout is clean.

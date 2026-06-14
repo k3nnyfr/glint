@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -60,6 +61,14 @@ func ParseBytes(data []byte) (*Pipeline, error) {
 			continue
 		}
 
+		// Extract any inline suppression directive from the job's head or line comment.
+		if rules := parseSuppressComment(keyNode.HeadComment, keyNode.LineComment); len(rules) > 0 {
+			if p.Suppressions == nil {
+				p.Suppressions = map[string][]string{}
+			}
+			p.Suppressions[key] = rules
+		}
+
 		var rawMap map[string]any
 		if err := valNode.Decode(&rawMap); err != nil {
 			return nil, fmt.Errorf("parsing raw job %q: %w", key, err)
@@ -76,6 +85,39 @@ func ParseBytes(data []byte) (*Pipeline, error) {
 	}
 
 	return p, nil
+}
+
+// parseSuppressComment scans head/line comments from a YAML key node for a
+// "# glint: ignore RULE [RULE ...]" directive. Returns the list of rule IDs
+// to suppress (uppercased), or []string{"*"} for "# glint: ignore all".
+// Returns nil when no directive is found.
+func parseSuppressComment(headComment, lineComment string) []string {
+	for _, raw := range []string{headComment, lineComment} {
+		for _, line := range strings.Split(raw, "\n") {
+			line = strings.TrimLeft(line, "# \t")
+			if !strings.HasPrefix(line, "glint:") {
+				continue
+			}
+			rest := strings.TrimSpace(strings.TrimPrefix(line, "glint:"))
+			if !strings.HasPrefix(rest, "ignore") {
+				continue
+			}
+			rest = strings.TrimSpace(strings.TrimPrefix(rest, "ignore"))
+			if rest == "" || strings.EqualFold(rest, "all") {
+				return []string{"*"}
+			}
+			var rules []string
+			for _, part := range strings.FieldsFunc(rest, func(r rune) bool {
+				return r == ',' || r == ' ' || r == '\t'
+			}) {
+				if p := strings.TrimSpace(part); p != "" {
+					rules = append(rules, strings.ToUpper(p))
+				}
+			}
+			return rules
+		}
+	}
+	return nil
 }
 
 // sanitizeYAMLEscapes rewrites double-quoted YAML strings, replacing the \/

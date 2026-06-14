@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.19] - 2026-06-14
+
+### Added
+
+- **`.glint.yml` project config file** — glint now searches for a `.glint.yml` file starting from the pipeline file's directory and walking up to the first `.git` boundary. Supported keys:
+  - `ignore: [GL007, GL032]` — suppress rules globally for the project.
+  - `severity: {GL004: warning}` — override rule severity (`error`, `warning`, or `ignore`). `ignore` is equivalent to listing the rule in `ignore:`.
+  - `stages: [quality]` — declare extra stage names that are valid beyond those in the pipeline's own `stages:` block; jobs in these stages are not flagged by GL004.
+  - `token: glpat-xxx` — default GitLab personal access token (lower priority than the `--token` flag and `GITLAB_TOKEN` env var).
+  - `url: https://gitlab.example.com` — default GitLab instance URL.
+  - `cache_dir: ~/.cache/glint` — default cache directory for fetched remote includes.
+
+- **Inline suppression comments** — a `# glint: ignore RULE` comment placed immediately before a job definition suppresses that rule for the specific job. Multiple rules can be comma- or space-separated (`# glint: ignore GL007, GL032`). Use `# glint: ignore all` to suppress every finding for the job. Suppressions are scoped to the annotated job; pipeline-level findings are unaffected.
+
 ## [0.2.18] - 2026-06-14
 
 ### Added

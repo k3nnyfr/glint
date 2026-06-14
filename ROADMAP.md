@@ -132,14 +132,10 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ---
 
-## Configuration
+## Configuration — ✓ shipped v0.2.19
 
-- **`.glint.yml` config file** — project-level configuration for:
-  - Rule suppression by rule ID (e.g. `ignore: [no-only, missing-stages]`)
-  - Severity overrides (demote specific errors to warnings)
-  - Custom `stages` allowlist for projects that use a non-standard default set
-  - Token and URL defaults so flags are not needed in every invocation
-- **Inline suppression comments** — `# glint: ignore next-line <rule-id>` in the pipeline YAML
+- ~~**`.glint.yml` config file**~~ — ✓ shipped v0.2.19; `ignore:`, `severity:`, `stages:`, `token:`, `url:`, `cache_dir:`; searched from the pipeline directory up to the git root
+- ~~**Inline suppression comments**~~ — ✓ shipped v0.2.19; `# glint: ignore GL007` before a job definition; comma/space-separated rules; `# glint: ignore all` wildcard
 
 ---
 

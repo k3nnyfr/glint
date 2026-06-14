@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.18-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.19-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -43,6 +43,8 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **`include: inputs:` substitution** — when a `component:` entry has a `with:` block, all `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in the fetched template are substituted before parsing, so component-scoped jobs get their correct `stage:` and keyword values instead of `$[[…]]` placeholders
 - **Offline mode + include cache** — pass `--cache-dir DIR` to cache fetched remote templates (project: and component: includes) to disk; `--offline` serves entirely from the cache without making network calls
 - **Structured output formats** — `--format json` emits a stable JSON report; `--format sarif` emits SARIF 2.1.0 (consumed by GitHub Code Scanning and GitLab SAST); `--format junit` emits JUnit XML (consumable as a CI test-report artifact); `--format github` emits GitHub Actions annotation lines (`::error file=…::`) so findings appear as inline PR comments
+- **`.glint.yml` project config** — rule suppression (`ignore: [GL007]`), severity overrides (`severity: {GL004: warning}`), extra stages allowlist (`stages: [quality]`), and default token/URL/cache-dir so flags are not needed on every invocation
+- **Inline suppression comments** — `# glint: ignore GL007` (or `# glint: ignore all`) immediately before a job definition suppresses the specified rule(s) for that job without touching other jobs
 - **Sorted findings output** — findings are sorted by source file then line number, so all issues from the same file appear together in order; pipeline-level findings (no file) sort first
 - **Consistent ruff-style warnings** — all warnings (unresolvable includes, skipped extends chains, workflow non-start) use the same `path: [warning] message` format as lint findings
 - **`--version` / `-v` flag** — prints the compiled version string (e.g. `glint v0.2.14`); the version is also shown at the top of every `--help` output
@@ -131,6 +133,68 @@ so stdout contains only the machine-readable payload.
 ```
 ::error file=.gitlab-ci.yml,line=14,title=GL004::job "deploy": stage "production" is not defined in 'stages'
 ```
+
+### Project configuration (`.glint.yml`)
+
+Place a `.glint.yml` file next to your pipeline (or anywhere in the directory tree up to the repository root) to configure glint for that project. glint searches upward from the pipeline file's directory, stopping at the first `.git` boundary.
+
+```yaml
+# .glint.yml
+
+# Suppress specific rules entirely.
+ignore:
+  - GL007   # we still use only:/except:, migration in progress
+  - GL032   # lots of dynamic variables injected by CI
+
+# Override the severity of specific rules.
+severity:
+  GL004: warning  # demote stage errors to warnings during a migration
+  GL035: error    # promote absolute-path warning to error for this project
+
+# Extra stages that are valid but not declared in the pipeline YAML itself
+# (e.g. injected by an include template we can't edit).
+stages:
+  - quality
+  - security
+
+# Default token — overridden by --token flag and GITLAB_TOKEN env.
+token: glpat-xxxx
+
+# Default GitLab instance URL.
+url: https://gitlab.example.com
+
+# Default cache directory for fetched remote includes.
+cache_dir: ~/.cache/glint
+```
+
+**Priority chain for token and URL:** `--token`/`--gitlab-url` flags > `.glint.yml` values > `GITLAB_TOKEN`/`CI_SERVER_URL` environment variables.
+
+### Inline suppression (`# glint: ignore`)
+
+Suppress a finding for a specific job by placing a `# glint: ignore RULE` comment immediately before the job definition:
+
+```yaml
+# glint: ignore GL007
+legacy-job:
+  stage: build
+  only:
+    - main
+  script: echo ok
+
+# Multiple rules — comma- or space-separated:
+# glint: ignore GL007, GL032
+another-job:
+  stage: build
+  script: echo ok
+
+# Suppress all rules for this job:
+# glint: ignore all
+noisy-job:
+  stage: build
+  script: echo ok
+```
+
+Inline suppressions are scoped to the single job they precede. They do not affect other jobs or pipeline-level findings. For project-wide suppression use `.glint.yml` `ignore:`.
 
 ### Remote project includes
 

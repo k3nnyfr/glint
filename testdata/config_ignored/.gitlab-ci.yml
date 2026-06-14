@@ -1,0 +1,10 @@
+stages:
+  - build
+
+# GL007 (only/except deprecated) would normally fire here, but the .glint.yml
+# in this directory ignores GL007.
+deprecated-job:
+  stage: build
+  only:
+    - main
+  script: echo ok

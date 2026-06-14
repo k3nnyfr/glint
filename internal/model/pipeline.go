@@ -12,6 +12,10 @@ type Pipeline struct {
 	// Jobs holds every non-reserved top-level key (i.e. job definitions).
 	Jobs    map[string]Job            `yaml:"-"`
 	RawJobs map[string]map[string]any `yaml:"-"` // pre-resolution raw maps, used by the resolver
+	// Suppressions maps job names to lists of suppressed rule IDs parsed from
+	// "# glint: ignore RULE" comments in the pipeline YAML. Only populated for
+	// the root pipeline file (not for included templates).
+	Suppressions map[string][]string `yaml:"-"`
 }
 
 // SetJobOrigin sets the File field on all jobs that don't already have one.
