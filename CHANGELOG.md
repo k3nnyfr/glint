@@ -15,6 +15,10 @@ This project uses [Semantic Versioning](https://semver.org).
 
 - **`inherit:` completeness (GL043)** — warns when a job declares `inherit: default:` (boolean or list form) but the pipeline has no `default:` block, making the declaration a no-op. Also warns when the list form names fields (e.g. `[image, before_script]`) that are not actually set in the `default:` block — those list entries have no effect.
 
+- **`FEATURES.md`** — full feature reference extracted from the README: all 43 lint rules in categorised tables, include resolution capabilities, context simulation details, output format schemas, configuration reference, graph visualisation modes, and developer tools. The README `## Features` section replaced with a compact 6-line `## What it does` summary with a link to `FEATURES.md`.
+
+- **`USAGE.md`** — complete command-by-command usage reference extracted from the README: `glint check` with all output formats and examples, context simulation flags and predefined variable table, remote includes and token resolution, cache and offline mode, component reference format, `glint graph` modes, `glint explain` usage, project config (`.glint.yml`), and inline suppression. The README `## Usage` section replaced with the commands block and a single link to `USAGE.md`.
+
 ## [0.2.19] - 2026-06-14
 
 ### Added
