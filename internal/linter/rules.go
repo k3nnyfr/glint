@@ -114,4 +114,8 @@ const (
 	// the job's own variables:, or any workflow:rules:variables: block.
 	// May be a false positive for variables set in GitLab CI/CD project settings.
 	RuleUndeclaredVariable = "GL032"
+
+	// GL033: every rule in a job's rules: block has when: never, so the job
+	// can never be included in any pipeline run.
+	RuleDeadRules = "GL033"
 )

@@ -81,6 +81,8 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/variable_refs_included.yml
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/dead_rules.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-coverage.yml

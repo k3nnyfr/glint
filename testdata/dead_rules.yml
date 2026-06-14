@@ -1,0 +1,59 @@
+---
+# dead_rules.yml
+# Exercises GL033: rules: block where every rule has when: never.
+# All flagged jobs produce a WARNING (exit 0). Valid jobs must not be flagged.
+
+stages:
+  - build
+  - test
+  - deploy
+
+# ── Jobs that should trigger GL033 ─────────────────────────────────────────
+
+# Single bare catch-all never — job is always excluded.
+disabled-job:
+  stage: build
+  script: echo disabled
+  rules:
+    - when: never
+
+# Multiple rules, all when: never — no branch can activate this job.
+dead-multi:
+  stage: test
+  script: echo dead
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: never
+    - when: never
+
+# ── Jobs that must NOT trigger GL033 ───────────────────────────────────────
+
+# First rule can activate.
+main-only:
+  stage: build
+  script: echo main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+
+# Rule with no when: — defaults to on_success, so job is reachable.
+implicit-on-success:
+  stage: test
+  script: echo implicit
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# Manual is not never — job is reachable (just gated).
+manual-gate:
+  stage: deploy
+  script: echo deploy
+  rules:
+    - when: manual
+
+# No rules at all — always active.
+always-active:
+  stage: build
+  script: echo always

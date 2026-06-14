@@ -61,6 +61,7 @@ glint graph tree --branch main .gitlab-ci.yml   # tree annotated with [skipped] 
 The current rule set covers the most common sources of broken pipelines. These are the gaps most likely to matter in practice.
 
 - ~~**Variable reference validation (GL032)**~~ — ✓ shipped v0.2.11; warns when a `rules:if:` expression references `$VAR` / `${VAR}` not declared anywhere in pipeline YAML; predefined GitLab namespaces (`CI_*`, `GITLAB_*`, …) exempt; variables from included files are also considered
+- ~~**`rules:if:` static reachability (GL033)**~~ — ✓ shipped v0.2.15; warns when every rule in a job's `rules:` block has `when: never`, making the job permanently excluded from any pipeline run; no `if:` evaluation required
 - **`services:` validation** — map form requires `name`; `alias` must be a valid DNS label
 - **`rules:changes` / `rules:exists`** — warn on glob patterns that can never match (e.g. absolute paths, double `**` on unsupported versions)
 - **`timeout` format** — must be a duration string GitLab understands (`1h 30m`, `90 minutes`, etc.)

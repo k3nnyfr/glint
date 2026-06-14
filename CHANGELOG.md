@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.15] - 2026-06-13
+
+### Added
+
+- **Static reachability check (GL033)** — warns when every rule in a job's `rules:` block has an explicit `when: never`, making the job permanently excluded from any pipeline run. This is a purely static claim: no matter which `if:` condition evaluates to true, the outcome is always "skip"; and if no rule matches, the implicit fallback is also skip. No expression evaluation or context is required. The finding is a `WARNING` (may be intentional as a "disabled job" pattern). Only jobs where every rule has the literal `when: never` value are flagged; rules with no `when:` (default `on_success`), `when: manual`, `when: always`, or `when: on_failure` are not.
+
 ## [0.2.14] - 2026-06-13
 
 ### Added

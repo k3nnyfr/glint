@@ -95,6 +95,7 @@ func checkJobKeywords(name string, job model.Job) []Finding {
 	findings = append(findings, checkArtifacts(name, job)...)
 	findings = append(findings, checkCache(name, job)...)
 	findings = append(findings, checkRules(name, job)...)
+	findings = append(findings, checkDeadRules(name, job)...)
 	findings = append(findings, checkImage(name, job)...)
 	findings = append(findings, checkInherit(name, job)...)
 	return findings
@@ -474,6 +475,28 @@ func checkRules(name string, job model.Job) []Finding {
 		}
 	}
 	return findings
+}
+
+// checkDeadRules reports when every rule in a job's rules: block has an
+// explicit when: never, making the job permanently unreachable. This is a
+// provably-correct static claim: no matter which if: condition matches, the
+// outcome is always "never"; and if no rule matches, the implicit fallback is
+// also skip. No if: evaluation is required.
+func checkDeadRules(name string, job model.Job) []Finding {
+	if len(job.Rules) == 0 {
+		return nil
+	}
+	for _, r := range job.Rules {
+		if r.When != "never" {
+			return nil
+		}
+	}
+	return []Finding{{
+		Severity: Warning,
+		Rule:     RuleDeadRules,
+		Job:      name,
+		Message:  "rules: block can never activate; every rule has 'when: never' — job is permanently excluded from the pipeline",
+	}}
 }
 
 func checkImage(name string, job model.Job) []Finding {
