@@ -13,46 +13,16 @@
 
 A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a GitLab server.
 
-## Features
+## What it does
 
-- **YAML validation** — detects malformed pipeline files early
-- **Stage validation** — every job's `stage` must be declared in `stages`
-- **`extends:` resolution** — resolves single and multi-level template inheritance before linting, so derived jobs are evaluated against their fully merged definition
-- **`needs:` DAG validation** — checks that `needs:` references exist, respect stage ordering, and contain no circular dependencies
-- **`dependencies:` validation** — checks that artifact dependency references exist and are in earlier stages
-- **Keyword validation** — validates constraints on `when`, `parallel`, `retry`, `allow_failure`, `trigger`, `artifacts`, `cache`, `release`, `environment`, `coverage`, `rules`, and more
-- **Remote project includes** — fetches `include: project:` templates from the GitLab API so extends/needs can be validated against the full merged pipeline
-- **CI/CD catalog components** — resolves `include: component:` references from the GitLab CI/CD Catalog; public components work without a token
-- **Deprecation warnings** — flags `only`/`except` usage in favour of `rules`
-- **Local include resolution** — `include: local:` entries are read from disk and recursively merged before linting, so multi-file pipelines are fully validated
-- **Extended variable declarations** — `variables:` entries may use the `{value, description, options}` map form (GitLab CI 13.7+); `default.image` accepts both string and map form; `rules.changes`/`rules.exists` accept both list and `{paths, compare_to}` map form
-- **Graph output** — `glint graph` prints a job tree (stages → jobs) to the terminal; `glint graph includes` emits a Mermaid include dependency diagram; `glint graph pipeline` renders a GitLab CI-style PNG/SVG
-- **Context simulation** — pass `--branch`, `--tag`, or `--source` to `glint check` or `glint graph` to see which jobs would be active, manual, or skipped for a specific pipeline event; evaluates `rules:if:` expressions and `only`/`except` filters
-- **Variable expansion** — `$VAR` and `${VAR}` references inside variable values are expanded after all sources are merged (pipeline defaults → workflow-rule overrides → CLI flags); transitive chains resolve automatically; visible via `--list-vars`
-- **Non-string variable scalars** — `BUILD: true`, `RETRIES: 3` and other bare boolean/integer variable values are handled correctly throughout: they render in `--list-vars` output and are injected into the evaluation context as their string equivalents, matching GitLab CI's behaviour
-- **Static reachability (GL033)** — warns when a job's `rules:` block can never activate: if every rule has `when: never` the job is permanently excluded from any pipeline run, provable without evaluating any `if:` expressions
-- **`services:` validation (GL034)** — map form requires a `name` key; `alias` must be a valid DNS label (letters, digits, hyphens, dots; no leading/trailing hyphens)
-- **`rules:changes` / `rules:exists` glob safety (GL035)** — warns when paths are absolute (start with `/`), which can never match since GitLab CI paths are always relative to the repository root
-- **`timeout:` format (GL036)** — validates that job and `default:` timeout values are valid GitLab CI duration strings (`1h 30m`, `90 minutes`, `2 hours`, etc.)
-- **`id_tokens:` validation (GL037)** — each OIDC token entry must have an `aud` key (missing `aud` is a GitLab API error at runtime)
-- **`secrets:` validation (GL038)** — each secret entry must declare exactly one provider (`vault`, `gcp_secret_manager`, or `azure_key_vault`)
-- **`pages:` keyword + `artifacts.paths` (GL039)** — warns when a job uses the `pages:` keyword but `artifacts.paths` does not include the publish directory (default: `public`)
-- **Duplicate stage names (GL040)** — warns when a stage name appears more than once in `stages:`; GitLab silently merges duplicates, which can cause confusing ordering
-- **`cache.key.files` glob detection (GL041)** — warns when `cache.key.files` entries contain glob metacharacters; this field requires exact file paths, not patterns
-- **`rules:if:` evaluated reachability (GL042)** — warns when every `rules:if:` condition in a job evaluates to false using the values of variables declared in the pipeline YAML, making the job statically unreachable; only fires when all referenced variables are declared (predefined `CI_*` vars are excluded to avoid false positives)
-- **`inherit:` completeness (GL043)** — warns when `inherit: default:` is declared but the pipeline has no `default:` block (dead declaration), or when the list form names fields not set in the `default:` block
-- **`glint explain <RULE>`** — new subcommand that prints the rule description, rationale, a bad-YAML example, and the corrected fix; `glint explain` (no argument) lists all rules with their severity
-- **Recursive include depth limit** — include chains are capped at 100 nesting levels (matching GitLab's own limit); project and component includes are now tracked in the visited-file set to prevent cross-include cycles
-- **`include: inputs:` substitution** — when a `component:` entry has a `with:` block, all `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in the fetched template are substituted before parsing, so component-scoped jobs get their correct `stage:` and keyword values instead of `$[[…]]` placeholders
-- **Offline mode + include cache** — pass `--cache-dir DIR` to cache fetched remote templates (project: and component: includes) to disk; `--offline` serves entirely from the cache without making network calls
-- **Structured output formats** — `--format json` emits a stable JSON report; `--format sarif` emits SARIF 2.1.0 (consumed by GitHub Code Scanning and GitLab SAST); `--format junit` emits JUnit XML (consumable as a CI test-report artifact); `--format github` emits GitHub Actions annotation lines (`::error file=…::`) so findings appear as inline PR comments
-- **`.glint.yml` project config** — rule suppression (`ignore: [GL007]`), severity overrides (`severity: {GL004: warning}`), extra stages allowlist (`stages: [quality]`), and default token/URL/cache-dir so flags are not needed on every invocation
-- **Inline suppression comments** — `# glint: ignore GL007` (or `# glint: ignore all`) immediately before a job definition suppresses the specified rule(s) for that job without touching other jobs
-- **Sorted findings output** — findings are sorted by source file then line number, so all issues from the same file appear together in order; pipeline-level findings (no file) sort first
-- **Consistent ruff-style warnings** — all warnings (unresolvable includes, skipped extends chains, workflow non-start) use the same `path: [warning] message` format as lint findings
-- **`--version` / `-v` flag** — prints the compiled version string (e.g. `glint v0.2.14`); the version is also shown at the top of every `--help` output
+- **Lints** — 43 rules covering pipeline structure, keyword constraints, `needs:`/`dependencies:` graphs, expression reachability, and deprecations (GL001–GL043); run `glint explain <ID>` for any rule
+- **Resolves includes** — local files, HTTPS URLs, GitLab project templates, and CI/CD Catalog components, with offline cache support
+- **Simulates context** — `--branch`, `--tag`, `--source` flags evaluate `rules:if:` and `only`/`except` to show which jobs would be active, manual, or skipped
+- **Multiple output formats** — `--format text` (default, ruff-style), `json`, `sarif` (GitHub Code Scanning / GitLab SAST), `junit`, `github` (PR annotations)
+- **Project config** — `.glint.yml` for rule suppression, severity overrides, token/URL defaults; `# glint: ignore RULE` for per-job inline suppression
+- **Graph visualization** — `glint graph` prints a terminal job tree; `glint graph pipeline` renders a GitLab CI-style SVG/PNG
 
-See [ROADMAP.md](ROADMAP.md) for planned improvements.
+See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules table, and [ROADMAP.md](ROADMAP.md) for planned improvements.
 
 ## Requirements
 
@@ -81,6 +51,7 @@ glint [OPTIONS] <COMMAND>
 Commands:
   check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
   graph    Visualise the pipeline as a job tree or Mermaid graph
+  explain  Print description and fix for a lint rule
 ```
 
 Run `glint <command> --help` for command-specific options and examples.
@@ -409,83 +380,6 @@ OK: .gitlab-ci.yml — no issues found (5 job(s), 3 stage(s))
 
 3 finding(s): 2 error(s)
 ```
-
-## Lint rules
-
-Every finding includes a stable rule ID (e.g. `GL003`) that can be used to filter output or reference a specific check in documentation.
-
-### Pipeline-level
-
-| ID | Severity | Rule |
-|----|----------|------|
-| GL002 | ERROR | `workflow.rules[*].when` is not `always` or `never` |
-| GL001 | WARNING | No `stages` defined (GitLab falls back to default stages) |
-| GL036 | ERROR | `default.timeout` is not a valid GitLab CI duration string |
-| GL040 | WARNING | A stage name appears more than once in `stages:` |
-
-### Job-level — structure
-
-| ID | Severity | Rule |
-|----|----------|------|
-| GL003 | ERROR | Job is missing required `script` (or `run`) — non-trigger, non-template jobs |
-| GL004 | ERROR | Job references a `stage` not declared in `stages` |
-| GL005 | ERROR | `only` and `rules` used together on the same job |
-| GL006 | ERROR | `except` and `rules` used together on the same job |
-| GL007 | WARNING | `only`/`except` used (deprecated, prefer `rules`) |
-
-### Job-level — keyword constraints
-
-| ID | Severity | Rule |
-|----|----------|------|
-| GL008 | ERROR | `when` is not one of `on_success`, `on_failure`, `always`, `manual`, `delayed`, `never` |
-| GL009 | ERROR | `when: delayed` without `start_in` |
-| GL010 | ERROR | `start_in` set but `when` is not `delayed` |
-| GL011 | ERROR | `parallel` integer not in range 2–200, or map form missing `matrix` key |
-| GL012 | ERROR | `retry` integer not in range 0–2, or `retry.max` out of range |
-| GL013 | ERROR | `retry.when` contains an unrecognised failure type |
-| GL014 | ERROR | `allow_failure` is not a boolean or a map with `exit_codes` |
-| GL015 | ERROR | `interruptible` is not a boolean |
-| GL016 | ERROR | `trigger` job also has `script` |
-| GL017 | ERROR | `trigger` map missing `project` or `include` |
-| GL018 | ERROR | `coverage` is not a regex pattern wrapped in `/` |
-| GL019 | ERROR | `release` missing required `tag_name`, or is not a map |
-| GL020 | ERROR | `environment.url` set without `environment.name`, or invalid `environment.action` |
-| GL021 | ERROR | `artifacts.when` invalid, or `artifacts.expose_as` set without `artifacts.paths` |
-| GL022 | WARNING | `pages` job `artifacts.paths` does not include `public` |
-| GL023 | ERROR | `cache.when` or `cache.policy` has an invalid value |
-| GL024 | ERROR | `rules[*].when` is not one of the valid `when` values |
-| GL025 | ERROR | `image` map form missing `name` key |
-| GL026 | ERROR | `inherit.default` / `inherit.variables` is not a boolean or list |
-| GL034 | ERROR | `services:` map form missing `name`, or `alias` is not a valid DNS label |
-| GL036 | ERROR | `timeout:` is not a valid GitLab CI duration string (e.g. `1h 30m`, `90 minutes`) |
-| GL037 | ERROR | `id_tokens:` entry is missing the required `aud` key |
-| GL038 | ERROR | `secrets:` entry is missing a provider key (`vault`, `gcp_secret_manager`, or `azure_key_vault`) |
-| GL039 | WARNING | Job has `pages:` keyword but `artifacts.paths` does not include the publish directory |
-| GL041 | WARNING | `cache.key.files` entry looks like a glob pattern; must be an exact file path |
-
-### Cross-job graph
-
-| ID | Severity | Rule |
-|----|----------|------|
-| GL027 | ERROR/WARNING | `needs:` references a job that does not exist (WARNING when `optional: true`) |
-| GL028 | ERROR | `needs:` references a job in a later stage |
-| GL029 | ERROR | Circular dependency detected in `needs:` graph |
-| GL030 | ERROR | `dependencies:` references a job that does not exist |
-| GL031 | ERROR | `dependencies:` references a job in the same or a later stage |
-
-### Expression validation
-
-| ID | Severity | Rule |
-|----|----------|------|
-| GL032 | WARNING | `rules:if:` references `$VAR` not declared in `variables:` (pipeline, job, or `workflow:rules:variables:`) — may be a false positive for variables set in GitLab CI/CD project settings |
-| GL033 | WARNING | Every rule in `rules:` has `when: never` — job is permanently excluded from the pipeline (statically provable without context) |
-| GL035 | WARNING | `rules:changes` / `rules:exists` path is absolute; GitLab CI paths are relative to the repo root — absolute paths will never match |
-| GL042 | WARNING | Every `rules:if:` condition evaluates to false given the declared pipeline variable values — job can never be active (only fires when all referenced variables are declared in YAML) |
-| GL043 | WARNING | `inherit: default:` is declared but there is no `default:` block in the pipeline, or the list form names fields not set in `default:` — declaration has no effect |
-
-### Hidden jobs (templates)
-
-Jobs whose name starts with `.` are treated as reusable templates and skipped for most rules. This matches GitLab's own behaviour.
 
 ## Development
 
