@@ -212,3 +212,38 @@ func TestCheckVariableRefs(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckVariableRefs_WorkflowRuleEmptyIf covers the `if rule.If == ""` early
+// continue at variables.go line 109-110 (workflow rule with no if: expression).
+func TestCheckVariableRefs_WorkflowRuleEmptyIf(t *testing.T) {
+	p := &model.Pipeline{
+		Workflow: &model.Workflow{
+			Rules: []model.Rule{
+				{When: "always"},              // no If → triggers the continue
+				{If: `$UNDECLARED == "yes"`},  // undeclared → warning
+			},
+		},
+		Jobs: map[string]model.Job{},
+	}
+	findings := checkVariableRefs(p)
+	count := 0
+	for _, f := range findings {
+		if f.Rule == RuleUndeclaredVariable {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 GL032 warning for UNDECLARED, got %d; findings: %v", count, findings)
+	}
+}
+
+// TestExtractIfVars_StringEscape covers the backslash-escape branch (line 42-44)
+// in extractIfVars when scanning a quoted string literal.
+func TestExtractIfVars_StringEscape(t *testing.T) {
+	// `$BRANCH == "de\velop"` — the `\v` inside the string literal triggers the
+	// escape-character skip in the scanning loop.
+	got := extractIfVars(`$BRANCH == "de\velop"`)
+	if len(got) != 1 || got[0] != "BRANCH" {
+		t.Errorf("extractIfVars with escape in string: got %v, want [BRANCH]", got)
+	}
+}

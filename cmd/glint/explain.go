@@ -18,7 +18,8 @@ func cmdExplain(args []string) {
 	entry, ok := linter.RuleCatalog[ruleID]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "glint explain: unknown rule %q\n\nRun 'glint explain' to list all rules.\n", ruleID)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 	printRuleEntry(ruleID, entry)
 }

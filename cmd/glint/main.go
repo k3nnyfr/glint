@@ -20,6 +20,9 @@ import (
 // version is set at build time via -ldflags "-X main.version=vX.Y.Z".
 var version = "dev"
 
+// exit is a variable so tests can capture exit calls without terminating.
+var exit = os.Exit
+
 // defaultCacheDir returns the platform-default glint cache directory:
 // $XDG_CACHE_HOME/glint or ~/.cache/glint.
 func defaultCacheDir() string {
@@ -51,7 +54,8 @@ For help with a specific command, see: ` + "`glint <command> --help`" + `.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, globalUsage)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 	switch os.Args[1] {
 	case "check":
@@ -67,7 +71,7 @@ func main() {
 		fmt.Printf("glint %s\n", version)
 	default:
 		fmt.Fprintf(os.Stderr, "glint: unknown command %q\n\n%s", os.Args[1], globalUsage)
-		os.Exit(2)
+		exit(2)
 	}
 }
 
@@ -189,12 +193,14 @@ Examples:
 	}
 	if !validFormats[*format] {
 		fmt.Fprintf(os.Stderr, "glint: unknown format %q; valid: text, json, sarif, junit, github\n", *format)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 
 	if fs.NArg() != 1 {
 		fs.Usage()
-		os.Exit(2)
+		exit(2)
+		return
 	}
 	path := fs.Arg(0)
 	rootDir := filepath.Dir(filepath.Clean(path))
@@ -229,7 +235,8 @@ Examples:
 	p, err := model.Parse(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 
 	// Merge config-defined stages into the pipeline before linting so that
@@ -253,7 +260,8 @@ Examples:
 	extWarnings, err := resolver.Resolve(p)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: resolving extends: %v\n", err)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 	for _, w := range extWarnings {
 		fmt.Fprintf(os.Stderr, "%s: [warning] job %q extends unknown job %q; extends chain skipped\n", path, w.Job, w.Base)
@@ -306,7 +314,7 @@ Examples:
 	}
 
 	if errCount > 0 {
-		os.Exit(1)
+		exit(1)
 	}
 }
 
@@ -411,7 +419,8 @@ Examples:
 
 	if fs.NArg() != 1 {
 		fs.Usage()
-		os.Exit(2)
+		exit(2)
+		return
 	}
 	path := fs.Arg(0)
 
@@ -425,7 +434,8 @@ Examples:
 	p, err := model.Parse(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(2)
+		exit(2)
+		return
 	}
 
 	rootDir := filepath.Dir(filepath.Clean(path))
@@ -453,7 +463,8 @@ Examples:
 		outPath, err := graph.RenderPipeline(p, *out)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
-			os.Exit(2)
+			exit(2)
+			return
 		}
 		fmt.Println(outPath)
 	case "all":
@@ -461,7 +472,8 @@ Examples:
 		outPath, err := graph.RenderPipeline(p, *out)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
-			os.Exit(2)
+			exit(2)
+			return
 		}
 		fmt.Fprintln(os.Stderr, outPath)
 	}

@@ -82,9 +82,6 @@ func Pipeline(p *model.Pipeline) string {
 	// Emit one subgraph per stage.
 	for _, stage := range stages {
 		jobs := byStage[stage]
-		if len(jobs) == 0 {
-			continue
-		}
 		sort.Strings(jobs)
 		wf("    subgraph %s[\"%s\"]", stageID(stage), stage)
 		for _, name := range jobs {

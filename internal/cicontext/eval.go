@@ -339,9 +339,6 @@ func (p *exprParser) parseStringLiteral() (string, bool) {
 }
 
 func (p *exprParser) parseRegexLiteral() (string, bool) {
-	if p.peek() != '/' {
-		return "", false
-	}
 	p.pos++ // consume opening '/'
 	var sb strings.Builder
 	for p.pos < len(p.s) {

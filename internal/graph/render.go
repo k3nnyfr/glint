@@ -37,10 +37,7 @@ func RenderPipeline(p *model.Pipeline, outDir string) (string, error) {
 		return "", fmt.Errorf("creating output directory %s: %w", outDir, err)
 	}
 
-	svg, err := pipelineSVG(p)
-	if err != nil {
-		return "", err
-	}
+	svg := pipelineSVG(p)
 
 	ts := time.Now().Format("20060102-150405")
 	svgPath := filepath.Join(outDir, "pipeline-"+ts+".svg")
@@ -58,21 +55,19 @@ func RenderPipeline(p *model.Pipeline, outDir string) (string, error) {
 
 // convertToPNG tries rsvg-convert, Inkscape, magick, and convert (not on Windows).
 func convertToPNG(svgPath, pngPath string) bool {
-	type cand struct {
-		args    []string
-		skipWin bool
+	candidates := [][]string{
+		{"rsvg-convert", "--output", pngPath, svgPath},
+		{"inkscape", "--export-filename=" + pngPath, svgPath},
+		{"magick", svgPath, pngPath},
 	}
-	for _, c := range []cand{
-		{[]string{"rsvg-convert", "--output", pngPath, svgPath}, false},
-		{[]string{"inkscape", "--export-filename=" + pngPath, svgPath}, false},
-		{[]string{"magick", svgPath, pngPath}, false},
-		{[]string{"convert", svgPath, pngPath}, true},
-	} {
-		if c.skipWin && runtime.GOOS == "windows" {
-			continue
-		}
-		if bin, err := exec.LookPath(c.args[0]); err == nil {
-			if exec.Command(bin, c.args[1:]...).Run() == nil {
+	// `convert` is the legacy ImageMagick name; skip on Windows where the name
+	// collides with the built-in FAT→NTFS converter.
+	if runtime.GOOS != "windows" {
+		candidates = append(candidates, []string{"convert", svgPath, pngPath})
+	}
+	for _, args := range candidates {
+		if bin, err := exec.LookPath(args[0]); err == nil {
+			if exec.Command(bin, args[1:]...).Run() == nil {
 				return true
 			}
 		}
@@ -80,7 +75,7 @@ func convertToPNG(svgPath, pngPath string) bool {
 	return false
 }
 
-func pipelineSVG(p *model.Pipeline) (string, error) {
+func pipelineSVG(p *model.Pipeline) string {
 	// Collect visible (non-template) job names in sorted order.
 	var visible []string
 	for name := range p.Jobs {
@@ -91,7 +86,7 @@ func pipelineSVG(p *model.Pipeline) (string, error) {
 	sort.Strings(visible)
 
 	if len(visible) == 0 {
-		return svgEmpty(), nil
+		return svgEmpty()
 	}
 
 	// Group by stage; fall back to "test" (GitLab default) when stage is unset.
@@ -290,7 +285,7 @@ func pipelineSVG(p *model.Pipeline) (string, error) {
 	}
 
 	w(`</svg>`)
-	return sb.String(), nil
+	return sb.String()
 }
 
 // drawChipIcon writes an SVG symbol inside the status circle to help identify

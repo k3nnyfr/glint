@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.21] - 2026-06-14
+
+### Changed
+
+- **Internal:** replaced all `os.Exit` calls in `cmd/glint` with an `exit` variable to enable unit testing without process termination; no behaviour change.
+- **Internal:** removed unreachable code paths found during coverage analysis — dead guard in `cicontext.parseRegexLiteral`, unreachable `len(jobs) == 0` branch in `graph.Pipeline`, and the `skipWin` struct field / dead `continue` in `graph.convertToPNG`; `pipelineSVG` return type simplified from `(string, error)` to `string` as it never returned a non-nil error. No behaviour change.
+
+### Added
+
+- **Unit test suite** — comprehensive table-driven tests added across all packages (`cmd/glint`, `internal/cicontext`, `internal/fetcher`, `internal/graph`, `internal/linter`, `internal/model`, `internal/resolver`), reaching 98%+ statement coverage.
+
 ## [0.2.20] - 2026-06-14
 
 ### Added

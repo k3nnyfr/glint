@@ -150,3 +150,12 @@ func TestCheckRulesIfReachability(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckRulesIfReachability_EmptyPipeline covers the early return (line 16-18)
+// when the pipeline has no jobs.
+func TestCheckRulesIfReachability_EmptyPipeline(t *testing.T) {
+	findings := checkRulesIfReachability(&model.Pipeline{Jobs: map[string]model.Job{}})
+	if len(findings) != 0 {
+		t.Errorf("empty pipeline: expected no findings, got %v", findings)
+	}
+}

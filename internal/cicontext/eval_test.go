@@ -138,6 +138,152 @@ func TestEvalIf(t *testing.T) {
 	}
 }
 
+// TestEvalIfParserEdgeCases exercises low-level parser branches not reached
+// by the main table-driven tests above.
+func TestEvalIfParserEdgeCases(t *testing.T) {
+	vars := func(key string) string {
+		switch key {
+		case "BRANCH":
+			return "develop"
+		case "UNTERMINATED_RE":
+			return "/no-end"
+		case "ESCAPED_RE":
+			return `/^dev\./`
+		}
+		return ""
+	}
+
+	// parseOr: right side of || fails to parse.
+	if !EvalIf(`$BRANCH || !(`, vars) {
+		t.Error("parseOr bad right: expect permissive-true")
+	}
+	if EvalIfStrict(`$BRANCH || !(`, vars) {
+		t.Error("parseOr bad right: expect strict-false")
+	}
+
+	// parsePrimary: inner parseOr succeeds but no closing ')'.
+	if !EvalIf(`($BRANCH == "develop"`, vars) {
+		t.Error("unmatched paren: expect permissive-true")
+	}
+	if EvalIfStrict(`($BRANCH == "develop"`, vars) {
+		t.Error("unmatched paren: expect strict-false")
+	}
+
+	// parseComparison ==: right-hand parseValue fails (! is not a valid value start).
+	if !EvalIf(`$BRANCH == !invalid`, vars) {
+		t.Error("== bad rhs: expect permissive-true")
+	}
+
+	// parseComparison !=: right-hand parseValue fails.
+	if !EvalIf(`$BRANCH != ${`, vars) {
+		t.Error("!= bad rhs: expect permissive-true")
+	}
+
+	// parseRegexRHS: peek is neither '/' nor '$' → return "", false, false.
+	// parseComparison =~: patOk=false, permissive=false → return false, false.
+	if !EvalIf(`$BRANCH =~ "literal"`, vars) {
+		t.Error("=~ string literal rhs: expect permissive-true")
+	}
+	if EvalIfStrict(`$BRANCH =~ "literal"`, vars) {
+		t.Error("=~ string literal rhs: expect strict-false")
+	}
+
+	// parseComparison =~: bad regex pattern → compile error → return true, true.
+	if !EvalIf(`$BRANCH =~ /[unclosed/`, vars) {
+		t.Error("=~ bad regex: expect permissive-true")
+	}
+
+	// parseComparison !~: patOk=false → return false, false.
+	if !EvalIf(`$BRANCH !~ "literal"`, vars) {
+		t.Error("!~ string literal rhs: expect permissive-true")
+	}
+	if EvalIfStrict(`$BRANCH !~ "literal"`, vars) {
+		t.Error("!~ string literal rhs: expect strict-false")
+	}
+
+	// parseComparison !~: bad regex pattern → compile error → return true, true.
+	if !EvalIf(`$BRANCH !~ /[unclosed/`, vars) {
+		t.Error("!~ bad regex: expect permissive-true")
+	}
+
+	// parseComparison single =: RHS parseValue fails.
+	if !EvalIf(`$BRANCH = !invalid`, vars) {
+		t.Error("single = bad rhs: expect permissive-true")
+	}
+
+	// parseValue: '$' not followed by a valid identifier.
+	if !EvalIf(`$} == "develop"`, vars) {
+		t.Error("$ bad ident: expect permissive-true")
+	}
+
+	// parseValue: '${' with no closing '}' or empty name.
+	if !EvalIf(`${} == "develop"`, vars) {
+		t.Error("${} empty name: expect permissive-true")
+	}
+	if !EvalIf(`${BRANCH == "develop"`, vars) {
+		t.Error("${BRANCH no close brace: expect permissive-true")
+	}
+
+	// parseStringLiteral: escape sequence — \v is consumed and the next byte
+	// is written literally, so "de\velop" → "develop" which matches BRANCH.
+	if !EvalIf(`$BRANCH == "de\velop"`, vars) {
+		t.Error(`string escape: "de\velop" should decode to "develop"`)
+	}
+
+	// parseStringLiteral: unterminated string literal.
+	if !EvalIf(`$BRANCH == "no-end`, vars) {
+		t.Error("unterminated string: expect permissive-true")
+	}
+	if EvalIfStrict(`$BRANCH == "no-end`, vars) {
+		t.Error("unterminated string: expect strict-false")
+	}
+
+	// parseRegexLiteral: escape sequence in regex (backslash preserved).
+	// /^d\evelop/ → pattern "^d\evelop" — \e is invalid in Go regexp
+	// → compile error → permissive true.
+	if !EvalIf(`$BRANCH =~ /^d\evelop/`, vars) {
+		t.Error("regex escape (bad compile): expect permissive-true")
+	}
+
+	// parseRegexLiteral: unterminated regex (no closing '/').
+	if !EvalIf(`$BRANCH =~ /no-end`, vars) {
+		t.Error("unterminated regex: expect permissive-true")
+	}
+	if EvalIfStrict(`$BRANCH =~ /no-end`, vars) {
+		t.Error("unterminated regex: expect strict-false")
+	}
+
+	// applyRegexFlags: 'm' and 's' flags (exercises two additional switch cases).
+	if !EvalIf(`$BRANCH =~ /^DEV/ims`, vars) {
+		t.Error("regex /ims flags: case-insensitive should match 'develop'")
+	}
+
+	// extractRegexFromString: unterminated regex in variable value.
+	// UNTERMINATED_RE = "/no-end" (no closing '/') → permissive.
+	if !EvalIf(`$BRANCH =~ $UNTERMINATED_RE`, vars) {
+		t.Error("unterminated re in var: expect permissive-true")
+	}
+
+	// extractRegexFromString: escape sequence in variable value.
+	// ESCAPED_RE = /^dev\./  → pattern = "^dev\." (literal dot) → no match for "develop".
+	if EvalIf(`$BRANCH =~ $ESCAPED_RE`, vars) {
+		t.Error("ESCAPED_RE=/^dev\\./ requires a literal dot; 'develop' has no dot")
+	}
+
+	// !~ permissive path (line 203-205): var value is a plain string, not /regex/ → permissive.
+	// BRANCH = "develop" which does not start with '/' → extractRegexFromString returns ok=false
+	// → parseRegexRHS returns permissive=true → !~ case returns (true, true).
+	if !EvalIf(`$BRANCH !~ $BRANCH`, vars) {
+		t.Error("!~ plain-var rhs: plain variable value triggers permissive-true")
+	}
+
+	// parseRegexRHS: '$' in rhs but parseValue fails (line 244-246).
+	// '$}' — '$' followed by '}' which is not a valid identifier start → varOk=false.
+	if !EvalIf(`$BRANCH =~ $}`, vars) {
+		t.Error("=~ $}: parseValue fails → permissive-true (EvalIf overall)")
+	}
+}
+
 func TestEvalIfStrict(t *testing.T) {
 	vars := func(key string) string {
 		m := map[string]string{

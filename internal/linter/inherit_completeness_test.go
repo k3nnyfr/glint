@@ -92,3 +92,74 @@ func TestCheckInheritCompleteness(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckInheritCompleteness_BoolInherit verifies that a scalar (non-map)
+// inherit value (e.g. inherit: true) is silently ignored.
+func TestCheckInheritCompleteness_BoolInherit(t *testing.T) {
+	job := model.Job{Inherit: true}
+	p := &model.Pipeline{
+		Default: nil,
+		Jobs:    map[string]model.Job{"job": job},
+	}
+	if findings := checkInheritCompleteness(p); len(findings) != 0 {
+		t.Errorf("bool inherit should produce no findings; got %v", findings)
+	}
+}
+
+// TestCheckInheritCompleteness_ListItemNotString verifies that non-string items
+// in the inherit: default: list are skipped.
+func TestCheckInheritCompleteness_ListItemNotString(t *testing.T) {
+	// The list contains 42 (int) and "image" (string). Only "image" should be checked.
+	job := model.Job{Inherit: map[string]any{"default": []any{42, "image"}}}
+	p := &model.Pipeline{
+		Default: &model.DefaultConfig{Image: "node:20"},
+		Jobs:    map[string]model.Job{"job": job},
+	}
+	// "image" IS set in default → no findings.
+	if findings := checkInheritCompleteness(p); len(findings) != 0 {
+		t.Errorf("non-string item should be skipped; got %v", findings)
+	}
+}
+
+// TestDefaultBlockHasField_AllFields exercises every field branch in
+// defaultBlockHasField, including the ones not covered by the main table test.
+func TestDefaultBlockHasField_AllFields(t *testing.T) {
+	cases := []struct {
+		name  string
+		d     *model.DefaultConfig
+		field string
+		want  bool
+	}{
+		{"after_script set", &model.DefaultConfig{AfterScript: []any{"echo"}}, "after_script", true},
+		{"after_script nil", &model.DefaultConfig{}, "after_script", false},
+		{"cache set", &model.DefaultConfig{Cache: map[string]any{"key": "main"}}, "cache", true},
+		{"cache nil", &model.DefaultConfig{}, "cache", false},
+		{"artifacts set", &model.DefaultConfig{Artifacts: map[string]any{"paths": []any{"dist/"}}}, "artifacts", true},
+		{"artifacts nil", &model.DefaultConfig{}, "artifacts", false},
+		{"retry set", &model.DefaultConfig{Retry: 2}, "retry", true},
+		{"retry nil", &model.DefaultConfig{}, "retry", false},
+		{"timeout set", &model.DefaultConfig{Timeout: "30m"}, "timeout", true},
+		{"timeout empty", &model.DefaultConfig{}, "timeout", false},
+		{"tags set", &model.DefaultConfig{Tags: []string{"docker"}}, "tags", true},
+		{"tags empty", &model.DefaultConfig{}, "tags", false},
+		{"unknown field", &model.DefaultConfig{}, "unknown_field", true}, // conservative
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := defaultBlockHasField(tc.d, tc.field)
+			if got != tc.want {
+				t.Errorf("defaultBlockHasField(%q) = %v, want %v", tc.field, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestPluralIs covers both branches of pluralIs.
+func TestPluralIs(t *testing.T) {
+	if pluralIs(1) != "this field is" {
+		t.Errorf("pluralIs(1) = %q, want 'this field is'", pluralIs(1))
+	}
+	if pluralIs(2) != "these fields are" {
+		t.Errorf("pluralIs(2) = %q, want 'these fields are'", pluralIs(2))
+	}
+}
