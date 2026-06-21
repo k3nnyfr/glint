@@ -128,9 +128,10 @@ expressions are always evaluated.
 - `rules:if:` — full expression language: `==`, `!=`, `=~`, `!~`, `&&`, `||`, `!`, `(…)`, `$VAR`/`${VAR}`, string literals, `null`, regex flags (`/pat/i`)
 - `only:` / `except:` — ref keywords, branch-name globs, and `/regex/` patterns
 - `workflow:rules:` — evaluated to determine whether the pipeline would run; matching rule's `variables:` are injected before job evaluation
+- `rules:changes:` — path-glob patterns evaluated against the supplied changed-file list (see `--changes` / `--changes-from` flags); `*` matches within a segment, `**` crosses `/` boundaries; the extended `{paths: [...], compare_to: ...}` form is supported; without changed-file data the condition is always treated as matching (permissive)
 - Variable expansion — `$VAR` / `${VAR}` references in variable values expanded after all sources merge; transitive chains resolved (up to 10 passes)
 
-**Not evaluated** (no git tree at lint time): `rules:changes:`, `rules:exists:`.
+**Not evaluated** (no git tree at lint time): `rules:exists:`.
 
 **Predefined variables** set by shortcut flags:
 
@@ -142,6 +143,13 @@ expressions are always evaluated.
 | `--var KEY=VALUE` | any variable; overrides shortcuts; repeatable |
 
 Use `--list-vars` to print the resolved variable table to stderr.
+
+**Changed-file flags** (for `rules:changes:` evaluation):
+
+| Flag | Effect |
+|------|--------|
+| `--changes PATH` | Mark PATH as changed; repeatable |
+| `--changes-from REF` | Run `git diff --name-only REF` to auto-detect changed files |
 
 ---
 

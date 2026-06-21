@@ -9,8 +9,9 @@ import (
 // pipeline evaluation (rules:if:, only:, except:, workflow:rules:).
 // Variables are keyed by their name without the leading $.
 type Context struct {
-	Vars   map[string]string
-	pinned map[string]bool // vars set via --var or shortcuts; never overwritten by Inject
+	Vars         map[string]string
+	pinned       map[string]bool // vars set via --var or shortcuts; never overwritten by Inject
+	changedFiles []string        // nil = not provided (permissive); non-nil = known set of changed files
 }
 
 // New builds a Context from high-level shortcut values and optional KEY=VALUE
@@ -101,6 +102,18 @@ func (c *Context) Inject(key, value string) {
 	c.Vars[key] = value
 }
 
+// SetChangedFiles records the list of files that changed for rules:changes:
+// evaluation. A non-nil slice (even empty) enables strict matching: only jobs
+// whose rules:changes: patterns match at least one file in the list will have
+// that rule fire. A nil slice (the default) means "not provided" — rules:changes:
+// conditions are treated as always satisfied (permissive), preserving the
+// behaviour when no changed-file data is available.
+func (c *Context) SetChangedFiles(files []string) {
+	if c != nil {
+		c.changedFiles = files
+	}
+}
+
 // Summary returns a short human-readable description of the context for CLI output.
 func (c *Context) Summary() string {
 	if c.IsEmpty() {
@@ -114,6 +127,9 @@ func (c *Context) Summary() string {
 	}
 	if v := c.Get("CI_PIPELINE_SOURCE"); v != "" {
 		parts = append(parts, "source="+v)
+	}
+	if c.changedFiles != nil {
+		parts = append(parts, fmt.Sprintf("%d changed file(s)", len(c.changedFiles)))
 	}
 	return strings.Join(parts, ", ")
 }

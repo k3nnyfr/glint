@@ -1,10 +1,19 @@
 package resolver
 
 import (
+	"fmt"
 	"testing"
 
 	"git.k3nny.fr/glint/internal/model"
 )
+
+// errorYAMLMarshaler implements yaml.Marshaler and always returns an error,
+// allowing tests to trigger the yaml.Marshal failure path in Resolve.
+type errorYAMLMarshaler struct{}
+
+func (e errorYAMLMarshaler) MarshalYAML() (interface{}, error) {
+	return nil, fmt.Errorf("forced marshal error for test")
+}
 
 // ── parseExtends ──────────────────────────────────────────────────────────────
 
@@ -251,6 +260,34 @@ func TestResolve(t *testing.T) {
 		_, err := Resolve(p)
 		if err == nil {
 			t.Fatal("expected error for invalid extends type")
+		}
+	})
+
+	t.Run("yaml.Marshal fails — errorYAMLMarshaler injected into merged map", func(t *testing.T) {
+		// Inject a value whose MarshalYAML() returns an error so yaml.Marshal
+		// fails at extends.go:74-77.
+		p := buildPipeline(map[string]map[string]any{
+			".base":  {"script": []any{"echo"}},
+			"child": {"extends": ".base", "bad": errorYAMLMarshaler{}},
+		})
+		_, err := Resolve(p)
+		if err == nil {
+			t.Fatal("expected error when yaml.Marshal fails")
+		}
+	})
+
+	t.Run("yaml.Unmarshal fails — map injected where []string expected", func(t *testing.T) {
+		// Marshal succeeds (maps are valid YAML), but Unmarshal into model.Job
+		// fails because Dependencies []string cannot hold a mapping.
+		p := buildPipeline(map[string]map[string]any{
+			".base": {
+				"dependencies": map[string]any{"invalid": "not-a-list"},
+			},
+			"child": {"extends": ".base", "stage": "build"},
+		})
+		_, err := Resolve(p)
+		if err == nil {
+			t.Fatal("expected error when yaml.Unmarshal fails on incompatible type")
 		}
 	})
 }

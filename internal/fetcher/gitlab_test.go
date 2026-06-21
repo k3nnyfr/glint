@@ -1,11 +1,31 @@
 package fetcher
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 )
+
+// roundTripFunc allows constructing a custom http.RoundTripper from a function.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// errReader is an io.Reader that always returns an error.
+type errReader struct{}
+
+func (e errReader) Read([]byte) (int, error) { return 0, errors.New("read error") }
+
+// replaceTransport temporarily replaces http.DefaultTransport and restores it.
+func replaceTransport(t *testing.T, rt http.RoundTripper) {
+	t.Helper()
+	orig := http.DefaultTransport
+	http.DefaultTransport = rt
+	t.Cleanup(func() { http.DefaultTransport = orig })
+}
 
 // ── firstNonEmpty ─────────────────────────────────────────────────────────────
 
@@ -240,6 +260,74 @@ func TestFetchURL_Offline(t *testing.T) {
 	cfg := GitLabConfig{Offline: true}
 	_, err := cfg.FetchURL("https://example.com/tmpl.yml")
 	if err == nil { t.Fatal("expected error in offline mode") }
+}
+
+// TestFetchFile_NewRequestFails covers gitlab.go:113-115 — http.NewRequest error
+// when the BaseURL contains a control character (null byte) making the URL invalid.
+func TestFetchFile_NewRequestFails(t *testing.T) {
+	cfg := GitLabConfig{BaseURL: "https://example.com\x00"}
+	_, err := cfg.FetchFile("p/q", "/f.yml", "main")
+	if err == nil {
+		t.Fatal("expected error for URL with null byte")
+	}
+}
+
+// TestFetchFile_DoFails covers gitlab.go:132-134 — http.DefaultClient.Do error.
+func TestFetchFile_DoFails(t *testing.T) {
+	replaceTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, errors.New("transport error")
+	}))
+	cfg := GitLabConfig{BaseURL: "https://example.com"}
+	_, err := cfg.FetchFile("p/q", "/f.yml", "main")
+	if err == nil {
+		t.Fatal("expected error when transport fails")
+	}
+}
+
+// TestFetchFile_ReadBodyFails covers gitlab.go:138-140 — io.ReadAll error on the
+// response body.
+func TestFetchFile_ReadBodyFails(t *testing.T) {
+	replaceTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(errReader{}),
+			Header:     make(http.Header),
+		}, nil
+	}))
+	cfg := GitLabConfig{BaseURL: "https://example.com"}
+	_, err := cfg.FetchFile("p/q", "/f.yml", "main")
+	if err == nil {
+		t.Fatal("expected error when body read fails")
+	}
+}
+
+// TestFetchURL_GetFails covers gitlab.go:173-175 — http.Get error.
+func TestFetchURL_GetFails(t *testing.T) {
+	replaceTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, errors.New("get failed")
+	}))
+	cfg := GitLabConfig{}
+	_, err := cfg.FetchURL("https://example.com/template.yml")
+	if err == nil {
+		t.Fatal("expected error when http.Get fails")
+	}
+}
+
+// TestFetchURL_ReadBodyFails covers gitlab.go:178-180 — io.ReadAll error on the
+// FetchURL response body.
+func TestFetchURL_ReadBodyFails(t *testing.T) {
+	replaceTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(errReader{}),
+			Header:     make(http.Header),
+		}, nil
+	}))
+	cfg := GitLabConfig{}
+	_, err := cfg.FetchURL("https://example.com/template.yml")
+	if err == nil {
+		t.Fatal("expected error when FetchURL body read fails")
+	}
 }
 
 func TestFetchURL_NotOK(t *testing.T) {

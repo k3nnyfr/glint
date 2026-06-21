@@ -644,6 +644,35 @@ func TestResolveProjectInclude_InvalidYAML(t *testing.T) {
 	}
 }
 
+// TestResolveProjectInclude_WithSubIncludes covers includes.go:236-240 —
+// the fetched project YAML itself contains include: entries.
+func TestResolveProjectInclude_WithSubIncludes(t *testing.T) {
+	dir := t.TempDir()
+	// Write a local file that the project YAML sub-includes.
+	localContent := "local-from-project:\n  script: echo local\n"
+	if err := os.WriteFile(filepath.Join(dir, "local.yml"), []byte(localContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		// Return YAML that itself has a local sub-include.
+		fmt.Fprintln(w, "include:\n  - local: /local.yml\nproj-sub-job:\n  script: echo proj")
+	}))
+	defer srv.Close()
+
+	p := &model.Pipeline{Jobs: map[string]model.Job{}, RawJobs: map[string]map[string]any{}}
+	cfg := fetcher.GitLabConfig{BaseURL: srv.URL, Token: "tok"}
+	entry := map[string]any{"project": "g/p", "file": "ci.yml", "ref": "main"}
+	warnings, _ := resolveProjectInclude(p, entry, "g/p", cfg, dir, map[string]bool{}, 0)
+	if len(warnings) != 0 {
+		t.Errorf("sub-includes: unexpected warnings: %v", warnings)
+	}
+	if _, ok := p.Jobs["proj-sub-job"]; !ok {
+		t.Error("proj-sub-job should be merged via project include")
+	}
+}
+
 // tlsComp sets up a TLS test server and swaps http.DefaultTransport so the test
 // client trusts the self-signed cert. Returns the host (without scheme).
 func tlsComp(t *testing.T, h http.HandlerFunc) (host string) {
@@ -688,6 +717,33 @@ func TestResolveComponentInclude_InvalidYAML(t *testing.T) {
 	_, _, hadErr := resolveComponentInclude(p, ref, nil, cfg, "/tmp", map[string]bool{}, 0)
 	if !hadErr {
 		t.Error("invalid YAML: expected hadErr")
+	}
+}
+
+// TestResolveComponentInclude_WithSubIncludes covers includes.go:288-291 —
+// the fetched component YAML itself contains include: entries.
+func TestResolveComponentInclude_WithSubIncludes(t *testing.T) {
+	dir := t.TempDir()
+	localContent := "comp-local-job:\n  script: echo comp-local\n"
+	if err := os.WriteFile(filepath.Join(dir, "sub.yml"), []byte(localContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	host := tlsComp(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		// Component YAML contains a local sub-include.
+		fmt.Fprintln(w, "include:\n  - local: /sub.yml\ncomp-job:\n  script: echo comp")
+	})
+	ref := host + "/g/p/mycomp@v1"
+
+	p := &model.Pipeline{Jobs: map[string]model.Job{}, RawJobs: map[string]map[string]any{}}
+	cfg := fetcher.GitLabConfig{}
+	_, extW, hadErr := resolveComponentInclude(p, ref, nil, cfg, dir, map[string]bool{}, 0)
+	if hadErr {
+		t.Errorf("sub-includes: unexpected hadErr; extWarnings=%v", extW)
+	}
+	if _, ok := p.Jobs["comp-job"]; !ok {
+		t.Error("comp-job should be merged via component include")
 	}
 }
 

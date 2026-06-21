@@ -305,9 +305,6 @@ func substituteInputs(data []byte, inputs map[string]any) []byte {
 	}
 	return inputPlaceholderRe.ReplaceAllFunc(data, func(match []byte) []byte {
 		groups := inputPlaceholderRe.FindSubmatch(match)
-		if len(groups) < 2 {
-			return match
-		}
 		if val, ok := inputs[string(groups[1])]; ok {
 			return []byte(fmt.Sprintf("%v", val))
 		}

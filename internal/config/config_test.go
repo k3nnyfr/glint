@@ -100,6 +100,21 @@ func TestLoad_StopsAtGitRoot(t *testing.T) {
 	}
 }
 
+// TestLoad_ReadError covers the !os.IsNotExist(err) branch (config.go:59-61)
+// when the file exists but is not readable.
+func TestLoad_ReadError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, Filename)
+	if err := os.WriteFile(cfgPath, []byte("ignore: []"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(cfgPath, 0o644) })
+	_, err := Load(tmp)
+	if err == nil {
+		t.Error("expected error for unreadable config file")
+	}
+}
+
 func TestLoad_InvalidYAML(t *testing.T) {
 	tmp := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmp, Filename), []byte("ignore: [unclosed\n"), 0o644); err != nil {

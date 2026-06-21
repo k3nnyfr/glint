@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -23,16 +24,41 @@ var version = "dev"
 // exit is a variable so tests can capture exit calls without terminating.
 var exit = os.Exit
 
+// userHomeDirFn is a variable so tests can simulate UserHomeDir failure.
+var userHomeDirFn = os.UserHomeDir
+
 // defaultCacheDir returns the platform-default glint cache directory:
 // $XDG_CACHE_HOME/glint or ~/.cache/glint.
 func defaultCacheDir() string {
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
 		return filepath.Join(xdg, "glint")
 	}
-	if home, err := os.UserHomeDir(); err == nil {
+	if home, err := userHomeDirFn(); err == nil {
 		return filepath.Join(home, ".cache", "glint")
 	}
 	return ""
+}
+
+// execCommandOutput is a variable so tests can mock external command execution.
+var execCommandOutput = func(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).Output()
+}
+
+// gitDiffFiles runs "git diff --name-only <ref>" and returns the list of changed
+// file paths. Returns nil + error when the command fails (e.g. not in a git repo
+// or the ref doesn't exist).
+func gitDiffFiles(ref string) ([]string, error) {
+	out, err := execCommandOutput("git", "diff", "--name-only", ref)
+	if err != nil {
+		return nil, fmt.Errorf("git diff --name-only %s: %w", ref, err)
+	}
+	var files []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
 }
 
 const globalUsage = `glint: Lint and visualise GitLab CI pipelines locally.
@@ -97,6 +123,9 @@ func cmdCheck(args []string) {
 	listVars := fs.Bool("list-vars", false, "print all collected pipeline variables (from root and included files) to stderr, then continue")
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
+	var changesFiles multiFlag
+	fs.Var(&changesFiles, "changes", "mark a file path as changed for rules:changes: evaluation; repeatable")
+	changesFrom := fs.String("changes-from", "", "git ref to diff against for rules:changes: evaluation (e.g. HEAD~1, origin/main)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Lint a GitLab CI pipeline file.
@@ -151,6 +180,16 @@ Options:
           Set or override a CI variable. Takes precedence over --branch, --tag,
           and --source. Repeatable.
 
+      --changes <PATH>
+          Mark a file as changed for rules:changes: evaluation. Repeatable.
+          When given, only jobs whose rules:changes: patterns match at least one
+          --changes path will have that rule fire; without --changes or
+          --changes-from the condition is treated as always matching (permissive).
+
+      --changes-from <REF>
+          Run "git diff --name-only <REF>" to determine changed files for
+          rules:changes: evaluation. Combined with --changes if both are given.
+
       --list-vars
           Print all pipeline-level variables collected from the root file and
           every included file (sorted KEY=VALUE) to stderr, then continue
@@ -178,6 +217,8 @@ Examples:
   glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
   glint check --cache-dir ~/.cache/glint .gitlab-ci.yml
   glint check --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
+  glint check --changes src/main.go --changes Dockerfile .gitlab-ci.yml
+  glint check --changes-from origin/main .gitlab-ci.yml
 `)
 	}
 	_ = fs.Parse(args)
@@ -268,6 +309,27 @@ Examples:
 	}
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
+	// Wire up rules:changes: evaluation when file-change data is provided.
+	if *changesFrom != "" || len(changesFiles) > 0 {
+		var allChanged []string
+		reliable := len(changesFiles) > 0
+		if *changesFrom != "" {
+			files, err := gitDiffFiles(*changesFrom)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: [warning] --changes-from: %v\n", path, err)
+			} else {
+				allChanged = append(allChanged, files...)
+				reliable = true
+			}
+		}
+		allChanged = append(allChanged, changesFiles...)
+		if reliable {
+			if allChanged == nil {
+				allChanged = []string{}
+			}
+			ctx.SetChangedFiles(allChanged)
+		}
+	}
 	if !ctx.IsEmpty() {
 		if !enrichContext(ctx, p) {
 			fmt.Fprintf(os.Stderr, "%s: [warning] workflow:rules: pipeline would not start for this context\n", path)
@@ -379,6 +441,13 @@ Options:
       --var <KEY=VALUE>
           Set or override a CI variable. Repeatable.
 
+      --changes <PATH>
+          Mark a file path as changed for rules:changes: evaluation. Repeatable.
+
+      --changes-from <REF>
+          Run "git diff --name-only <REF>" to determine changed files for
+          rules:changes: evaluation.
+
       --list-vars
           Print all pipeline-level variables collected from the root file and
           every included file (sorted KEY=VALUE) to stderr, then continue
@@ -397,6 +466,7 @@ Examples:
   glint graph tree --branch develop .gitlab-ci.yml
   glint graph tree --tag v1.0.0 .gitlab-ci.yml
   glint graph tree --list-vars .gitlab-ci.yml
+  glint graph tree --changes src/main.go .gitlab-ci.yml
   glint graph includes .gitlab-ci.yml > includes.mmd
   glint graph pipeline .gitlab-ci.yml
   glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
@@ -409,6 +479,9 @@ Examples:
 	listVars := fs.Bool("list-vars", false, "print all collected pipeline variables to stderr, then continue")
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
+	var changesFiles multiFlag
+	fs.Var(&changesFiles, "changes", "mark a file path as changed for rules:changes: evaluation; repeatable")
+	changesFrom := fs.String("changes-from", "", "git ref to diff against for rules:changes: evaluation (e.g. HEAD~1, origin/main)")
 	_ = fs.Parse(args)
 
 	// Apply implicit defaults when no context flag is given at all.
@@ -443,6 +516,27 @@ Examples:
 	resolver.Resolve(p)                       //nolint:errcheck
 
 	ctx := cicontext.New(*branch, *tag, *source, vars)
+	// Wire up rules:changes: evaluation when file-change data is provided.
+	if *changesFrom != "" || len(changesFiles) > 0 {
+		var allChanged []string
+		reliable := len(changesFiles) > 0
+		if *changesFrom != "" {
+			files, err := gitDiffFiles(*changesFrom)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: [warning] --changes-from: %v\n", path, err)
+			} else {
+				allChanged = append(allChanged, files...)
+				reliable = true
+			}
+		}
+		allChanged = append(allChanged, changesFiles...)
+		if reliable {
+			if allChanged == nil {
+				allChanged = []string{}
+			}
+			ctx.SetChangedFiles(allChanged)
+		}
+	}
 	if !ctx.IsEmpty() {
 		enrichContext(ctx, p)
 	}

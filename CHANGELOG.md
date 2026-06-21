@@ -5,16 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
-## [0.2.21] - 2026-06-14
+## [0.2.21] - 2026-06-21
+
+### Added
+
+- **`rules:changes:` evaluation** — `glint check` and `glint graph` now evaluate `rules:changes:` conditions when file-change data is provided. Two new flags on both subcommands:
+  - `--changes <PATH>` — mark one or more file paths as changed (repeatable).
+  - `--changes-from <REF>` — run `git diff --name-only <REF>` to determine changed files automatically (e.g. `--changes-from origin/main`).
+  Both flags can be combined. Glob patterns in `rules:changes:` support `*` (within a path segment) and `**` (across segments). When neither flag is given the condition is treated as always matching (permissive), preserving the existing behaviour. The extended map form `{ paths: [...], compare_to: ... }` is also supported.
+
+- **`workflow:rules:changes:` evaluation** — `workflow:rules:` entries now also evaluate `changes:` patterns when changed-file data is available, consistent with job rules.
+
+- **Context summary includes changed files** — the `Context:` line printed by `glint check --format text` now shows the count of changed files when `--changes`/`--changes-from` is given (e.g. `branch=main, source=push, 3 changed file(s)`).
+
+- **Unit test suite** — 100% statement coverage across all packages (`cmd/glint`, `internal/cicontext`, `internal/fetcher`, `internal/graph`, `internal/linter`, `internal/model`, `internal/resolver`).
 
 ### Changed
 
 - **Internal:** replaced all `os.Exit` calls in `cmd/glint` with an `exit` variable to enable unit testing without process termination; no behaviour change.
 - **Internal:** removed unreachable code paths found during coverage analysis — dead guard in `cicontext.parseRegexLiteral`, unreachable `len(jobs) == 0` branch in `graph.Pipeline`, and the `skipWin` struct field / dead `continue` in `graph.convertToPNG`; `pipelineSVG` return type simplified from `(string, error)` to `string` as it never returned a non-nil error. No behaviour change.
-
-### Added
-
-- **Unit test suite** — comprehensive table-driven tests added across all packages (`cmd/glint`, `internal/cicontext`, `internal/fetcher`, `internal/graph`, `internal/linter`, `internal/model`, `internal/resolver`), reaching 98%+ statement coverage.
 
 ## [0.2.20] - 2026-06-14
 

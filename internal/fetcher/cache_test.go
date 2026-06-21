@@ -52,6 +52,18 @@ func TestCacheWrite_EmptyDir(t *testing.T) {
 	cacheWrite("", "key", []byte("data"))
 }
 
+// TestCacheWrite_DirIsFile covers the os.MkdirAll error path (cache.go:29-31)
+// when the cache dir path is occupied by a regular file.
+func TestCacheWrite_DirIsFile(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(f, []byte("occupied"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// MkdirAll(f) fails because f is a file, not a directory.
+	cacheWrite(f, "key", []byte("data"))
+	// No panic, no error returned — the function silently returns.
+}
+
 func TestCacheWrite_MkdirAll(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sub", "dir")
 	cacheWrite(dir, "k", []byte("v"))

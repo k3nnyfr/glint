@@ -1,6 +1,7 @@
 package cicontext
 
 import (
+	"path"
 	"regexp"
 	"strings"
 
@@ -49,6 +50,9 @@ func EvalWorkflow(p *model.Pipeline, ctx *Context) (bool, map[string]string) {
 		if !ruleIfMatchesStrict(rule.If, vars) {
 			continue
 		}
+		if !changesMatch(rule.Changes, ctx) {
+			continue
+		}
 		when := rule.When
 		if when == "" {
 			when = "always"
@@ -72,6 +76,9 @@ func EvalJob(job model.Job, ctx *Context) JobState {
 	if len(job.Rules) > 0 {
 		for _, rule := range job.Rules {
 			if !ruleIfMatches(rule.If, vars) {
+				continue
+			}
+			if !changesMatch(rule.Changes, ctx) {
 				continue
 			}
 			return whenToState(rule.When)
@@ -261,4 +268,92 @@ func matchGlob(pattern, s string) bool {
 		s = s[1:]
 	}
 	return len(s) == 0
+}
+
+// ── rules:changes: evaluation ─────────────────────────────────────────────────
+
+// changesMatch reports whether the rule's changes: filter is satisfied.
+//
+//   - rule.Changes == nil → no filter; always true
+//   - ctx.changedFiles == nil → file list not provided; always true (permissive)
+//   - otherwise → true iff at least one changed file matches at least one pattern
+func changesMatch(changes any, ctx *Context) bool {
+	patterns := extractChangesPaths(changes)
+	if patterns == nil {
+		return true // no changes: filter
+	}
+	if ctx.changedFiles == nil {
+		return true // no file list provided → permissive
+	}
+	for _, changed := range ctx.changedFiles {
+		for _, pat := range patterns {
+			if doublestarMatch(pat, changed) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// extractChangesPaths normalises a rule.Changes value into a []string of glob
+// patterns. Returns nil when no changes: filter is present.
+func extractChangesPaths(changes any) []string {
+	switch v := changes.(type) {
+	case nil:
+		return nil
+	case string:
+		return []string{v}
+	case []string:
+		return v
+	case []any:
+		var out []string
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	case map[string]any:
+		// Extended form: { paths: [...], compare_to: "..." }
+		if raw, ok := v["paths"]; ok {
+			return extractChangesPaths(raw)
+		}
+		return nil
+	}
+	return nil
+}
+
+// doublestarMatch reports whether pattern matches the file path using GitLab-style
+// glob rules: '*' matches any character sequence within a single path segment;
+// '**' matches zero or more path segments (crossing '/' boundaries).
+func doublestarMatch(pattern, filePath string) bool {
+	return matchParts(strings.Split(pattern, "/"), strings.Split(filePath, "/"))
+}
+
+// matchParts is the recursive engine for doublestarMatch.
+func matchParts(pat, name []string) bool {
+	for len(pat) > 0 {
+		if pat[0] == "**" {
+			if len(pat) == 1 {
+				return true // trailing ** matches everything remaining
+			}
+			// ** can match 0, 1, 2, … leading segments of name.
+			for i := 0; i <= len(name); i++ {
+				if matchParts(pat[1:], name[i:]) {
+					return true
+				}
+			}
+			return false
+		}
+		if len(name) == 0 {
+			return false
+		}
+		ok, err := path.Match(pat[0], name[0])
+		if err != nil || !ok {
+			return false
+		}
+		pat = pat[1:]
+		name = name[1:]
+	}
+	return len(name) == 0
 }
