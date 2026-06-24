@@ -154,4 +154,8 @@ const (
 	// pipeline has no 'default:' block, making the declaration a no-op. Also fires
 	// when 'inherit: default: [list]' names fields not set in the default: block.
 	RuleInheritNoDefault = "GL043"
+
+	// GL044: a rules:needs: entry references a job that does not exist in the pipeline.
+	// rules:needs: overrides the top-level needs: when a specific rule matches (GitLab CI 16.4+).
+	RuleRulesNeedsUnknown = "GL044"
 )

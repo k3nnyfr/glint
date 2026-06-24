@@ -62,6 +62,7 @@ func Lint(p *model.Pipeline, skipped map[string]bool) []Finding {
 	findings = append(findings, checkWorkflow(p)...)
 	findings = append(findings, checkJobs(p)...)
 	findings = append(findings, checkNeeds(p, skipped)...)
+	findings = append(findings, checkRulesNeeds(p, skipped)...)
 	findings = append(findings, checkDependencies(p, skipped)...)
 	findings = append(findings, checkVariableRefs(p)...)
 	findings = append(findings, checkRulesIfReachability(p)...)

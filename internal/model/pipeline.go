@@ -89,6 +89,7 @@ type Rule struct {
 	Changes   any            `yaml:"changes"`   // []string or {paths,compare_to} map
 	Exists    any            `yaml:"exists"`    // []string or map form
 	Variables map[string]any `yaml:"variables"` // set/override variables when rule matches (GitLab CI 15.0+)
+	Needs     []any          `yaml:"needs"`     // override needs: when this rule matches (GitLab CI 16.4+)
 }
 
 // ReservedKeys are top-level GitLab CI keys that are NOT job definitions.

@@ -85,6 +85,44 @@ func checkNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
 	return findings
 }
 
+// checkRulesNeeds validates rules:needs: entries across all jobs. Each entry
+// in a rule's needs: list must reference a job that exists in the pipeline.
+// Cross-pipeline needs (maps with a "pipeline" key) are ignored. Skipped jobs
+// are excluded from checking (same semantics as top-level needs: via GL027).
+func checkRulesNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
+	var findings []Finding
+	for name, job := range p.Jobs {
+		if skipped[name] {
+			continue
+		}
+		for i, rule := range job.Rules {
+			if len(rule.Needs) == 0 {
+				continue
+			}
+			for _, entry := range parseNeedEntries(rule.Needs) {
+				if _, exists := p.Jobs[entry.job]; !exists {
+					sev := Error
+					if entry.optional {
+						sev = Warning
+					}
+					findings = append(findings, Finding{
+						Severity: sev,
+						Rule:     RuleRulesNeedsUnknown,
+						Job:      name,
+						File:     job.File,
+						Line:     job.Line,
+						Message: fmt.Sprintf(
+							"rules[%d].needs: references unknown job %q",
+							i, entry.job,
+						),
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
 // parseNeedEntries extracts needs entries from a needs: list, preserving the
 // optional flag. Each element is a plain string (job name) or a map with a
 // "job" key. Cross-pipeline needs (maps with a "pipeline" key) are skipped.

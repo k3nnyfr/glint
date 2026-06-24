@@ -113,7 +113,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20; GL044 added v0.2.24
 - ~~**`glint explain <rule-id>`**~~ — ✓ shipped v0.2.20; prints rule description, rationale, bad-YAML example, and fix; `glint explain` (no arg) lists all rules
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`

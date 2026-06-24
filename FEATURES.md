@@ -69,6 +69,7 @@ description, bad-YAML example, and fix.
 | GL029 | ERR | Circular dependency in `needs:` graph |
 | GL030 | ERR | `dependencies:` references a job that doesn't exist |
 | GL031 | ERR | `dependencies:` references a job in the same or a later stage |
+| GL044 | ERR/WARN | `rules:needs:` references a job that doesn't exist (WARN when `optional: true`) |
 
 ### Expression & reachability
 

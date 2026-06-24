@@ -816,4 +816,41 @@ my-job:
 my-job:
   script: echo hi`,
 	},
+
+	RuleRulesNeedsUnknown: {
+		Title:    "'rules:needs:' references unknown job",
+		Severity: Error,
+		Description: "A job listed in a rule's 'needs:' override does not exist in " +
+			"the pipeline. 'rules:needs:' (GitLab CI 16.4+) overrides the top-level " +
+			"'needs:' list when that specific rule matches. GitLab will refuse to " +
+			"create the pipeline if any referenced job is missing.",
+		Example: `stages: [build, test]
+
+build:
+  stage: build
+  script: make
+
+test:
+  stage: test
+  script: make test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      needs: [build, lint]   # lint does not exist`,
+		Fix: `stages: [build, test]
+
+lint:
+  stage: build
+  script: make lint
+
+build:
+  stage: build
+  script: make
+
+test:
+  stage: test
+  script: make test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      needs: [build, lint]`,
+	},
 }

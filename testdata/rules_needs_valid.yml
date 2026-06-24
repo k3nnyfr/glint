@@ -1,0 +1,19 @@
+stages:
+  - build
+  - test
+
+build-job:
+  stage: build
+  script: make
+
+lint-job:
+  stage: build
+  script: make lint
+
+test-job:
+  stage: test
+  script: make test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      needs: [build-job, lint-job]   # both exist → clean
+    - when: on_success

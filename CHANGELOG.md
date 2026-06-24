@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.24] - 2026-06-25
+
+### Added
+
+- **`rules:needs:` validation (GL044)** — validates jobs listed in `rules:needs:` overrides (GitLab CI 16.4+). Each entry must reference a job that exists in the pipeline; `optional: true` entries that reference missing jobs are downgraded to warnings (same behaviour as GL027 for top-level `needs:`). Cross-pipeline needs (maps with a `pipeline:` key) are ignored. Skipped jobs are excluded when a context is provided. `glint explain GL044` documents the rule with a bad-YAML example and fix.
+
+- **`Rule.Needs` model field** — `rules:` entries now parse their `needs:` key into `model.Rule.Needs []any`, making the per-rule needs list available for validation and future evaluation.
+
 ## [0.2.23] - 2026-06-25
 
 ### Added
