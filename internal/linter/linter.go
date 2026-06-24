@@ -52,15 +52,17 @@ func (f Finding) String() string {
 
 // Lint runs all rules against p and returns findings sorted by (File, Line, Rule).
 // Findings with no File (pipeline-level) sort before file-scoped ones.
-func Lint(p *model.Pipeline) []Finding {
+// skipped is an optional set of job names to exclude from cross-job checks
+// (needs:, dependencies:); pass nil to check all jobs.
+func Lint(p *model.Pipeline, skipped map[string]bool) []Finding {
 	var findings []Finding
 	findings = append(findings, checkStages(p)...)
 	findings = append(findings, checkDuplicateStages(p)...)
 	findings = append(findings, checkDefault(p)...)
 	findings = append(findings, checkWorkflow(p)...)
 	findings = append(findings, checkJobs(p)...)
-	findings = append(findings, checkNeeds(p)...)
-	findings = append(findings, checkDependencies(p)...)
+	findings = append(findings, checkNeeds(p, skipped)...)
+	findings = append(findings, checkDependencies(p, skipped)...)
 	findings = append(findings, checkVariableRefs(p)...)
 	findings = append(findings, checkRulesIfReachability(p)...)
 	findings = append(findings, checkInheritCompleteness(p)...)

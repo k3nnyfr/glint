@@ -341,6 +341,8 @@ Examples:
 		}
 	}
 
+	var skipped map[string]bool // jobs excluded from cross-job lint checks
+
 	if len(contexts) > 0 {
 		// Multi-context mode: build one context per --context flag, then print a comparison table.
 		ctxList := make([]*cicontext.Context, 0, len(contexts))
@@ -368,6 +370,17 @@ Examples:
 			if !enrichContext(ctx, p) {
 				fmt.Fprintf(os.Stderr, "%s: [warning] workflow:rules: pipeline would not start for this context\n", path)
 			}
+			// Build skipped set: jobs statically unreachable in this context are
+			// excluded from needs:/dependencies: cross-checks to avoid false positives.
+			skipped = make(map[string]bool)
+			for name, job := range p.Jobs {
+				if cicontext.EvalJob(job, ctx) == cicontext.JobSkipped {
+					skipped[name] = true
+				}
+			}
+			if len(skipped) == 0 {
+				skipped = nil
+			}
 		}
 		if *listVars {
 			printVars(p, ctx)
@@ -379,7 +392,7 @@ Examples:
 		}
 	}
 
-	findings := linter.Lint(p)
+	findings := linter.Lint(p, skipped)
 	findings = applyConfig(findings, glintCfg, p.Suppressions)
 	errCount, _ := countSeverities(findings)
 

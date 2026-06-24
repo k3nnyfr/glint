@@ -12,7 +12,7 @@ type needEntry struct {
 	optional bool // true when the needs entry carries optional: true
 }
 
-func checkNeeds(p *model.Pipeline) []Finding {
+func checkNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
 	var findings []Finding
 
 	// Build a stage-index map for ordering checks.
@@ -26,6 +26,9 @@ func checkNeeds(p *model.Pipeline) []Finding {
 	needsGraph := make(map[string][]string)
 
 	for name, job := range p.Jobs {
+		if skipped[name] {
+			continue
+		}
 		if len(job.Needs) == 0 {
 			continue
 		}

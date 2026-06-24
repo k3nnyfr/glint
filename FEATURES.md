@@ -151,6 +151,17 @@ Use `--list-vars` to print the resolved variable table to stderr.
 | `--changes PATH` | Mark PATH as changed; repeatable |
 | `--changes-from REF` | Run `git diff --name-only REF` to auto-detect changed files |
 
+**Context-scoped linting** (single-context mode):
+
+When a context is given, jobs evaluated as `skipped` are excluded from `needs:` and `dependencies:` cross-job checks (GL027–GL031). This eliminates false positives for jobs that are intentionally gated to specific pipeline events:
+
+```yaml
+deploy-job:
+  needs: [build-job]   # GL027 suppressed on branch pipelines; only checked on tag pipelines
+  rules:
+    - if: '$CI_COMMIT_TAG != ""'
+```
+
 **Multi-context comparison** (`--context`):
 
 Pass `--context KEY=VALUE[,...]` (repeatable) instead of `--branch`/`--tag`/`--source` to evaluate every job across multiple contexts simultaneously. Each `--context` flag defines one column; glint prints a table showing `active`, `manual`, `skipped`, or `blocked` per job per context.

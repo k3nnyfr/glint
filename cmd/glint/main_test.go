@@ -823,6 +823,71 @@ build-job:
 	}
 }
 
+// ── context-scoped linting ───────────────────────────────────────────────────
+
+func TestCmdCheck_ContextScopedLinting_SuppressesSkippedJob(t *testing.T) {
+	// deploy-job has needs: [nonexistent] but is gated to tag pipelines only.
+	// With --branch main the job is skipped → GL027 should be suppressed.
+	content := `
+stages: [build, deploy]
+build-job:
+  stage: build
+  script: make
+deploy-job:
+  stage: deploy
+  script: make deploy
+  needs: [nonexistent-job]
+  rules:
+    - if: '$CI_COMMIT_TAG != ""'
+      when: on_success
+    - when: never
+`
+	path := writePipeline(t, content)
+
+	// Without context (permissive default branch=main): deploy-job IS skipped
+	// by rules evaluation → needs cross-check suppressed → exit 0.
+	code := captureExit(t)
+	cmdCheck([]string{"--branch", "main", path})
+	if *code == 1 {
+		t.Error("skipped job's needs: error should be suppressed in context-scoped lint")
+	}
+}
+
+func TestCmdCheck_ContextScopedLinting_ActiveJobStillErrors(t *testing.T) {
+	// Same pipeline but with --tag set: deploy-job is active → GL027 fires.
+	content := `
+stages: [build, deploy]
+build-job:
+  stage: build
+  script: make
+deploy-job:
+  stage: deploy
+  script: make deploy
+  needs: [nonexistent-job]
+  rules:
+    - if: '$CI_COMMIT_TAG != ""'
+      when: on_success
+    - when: never
+`
+	path := writePipeline(t, content)
+
+	code := captureExit(t)
+	cmdCheck([]string{"--tag", "v1.0.0", path})
+	if *code != 1 {
+		t.Error("active job's bad needs: should still produce GL027 error")
+	}
+}
+
+func TestCmdCheck_ContextScopedLinting_SkippedSet_IsNilWhenAllActive(t *testing.T) {
+	// All jobs active → skipped set is nil → no regression in normal behaviour.
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--branch", "main", path})
+	if *code == 1 {
+		t.Error("valid pipeline with all-active jobs should not produce errors")
+	}
+}
+
 // ── parseContextSpec ─────────────────────────────────────────────────────────
 
 func TestParseContextSpec(t *testing.T) {

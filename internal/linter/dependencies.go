@@ -6,7 +6,7 @@ import (
 	"git.k3nny.fr/glint/internal/model"
 )
 
-func checkDependencies(p *model.Pipeline) []Finding {
+func checkDependencies(p *model.Pipeline, skipped map[string]bool) []Finding {
 	stageIndex := make(map[string]int, len(p.Stages))
 	for i, s := range p.Stages {
 		stageIndex[s] = i
@@ -14,6 +14,9 @@ func checkDependencies(p *model.Pipeline) []Finding {
 
 	var findings []Finding
 	for name, job := range p.Jobs {
+		if skipped[name] {
+			continue
+		}
 		if len(job.Dependencies) == 0 {
 			continue
 		}

@@ -458,7 +458,7 @@ func TestCheckNeeds(t *testing.T) {
 				Needs: []any{"build-job"}},
 		},
 	}
-	if len(checkNeeds(p)) != 0 { t.Error("valid needs: clean") }
+	if len(checkNeeds(p, nil)) != 0 { t.Error("valid needs: clean") }
 
 	// needs unknown job
 	p2 := &model.Pipeline{
@@ -466,7 +466,7 @@ func TestCheckNeeds(t *testing.T) {
 			"test-job": {Name: "test-job", Stage: "test", Needs: []any{"nonexistent"}},
 		},
 	}
-	if len(checkNeeds(p2)) != 1 { t.Error("unknown needs: error") }
+	if len(checkNeeds(p2, nil)) != 1 { t.Error("unknown needs: error") }
 
 	// optional: true for unknown job → warning not error
 	p3 := &model.Pipeline{
@@ -475,7 +475,7 @@ func TestCheckNeeds(t *testing.T) {
 				Needs: []any{map[string]any{"job": "ghost", "optional": true}}},
 		},
 	}
-	findings := checkNeeds(p3)
+	findings := checkNeeds(p3, nil)
 	if len(findings) != 1 || findings[0].Severity != Warning {
 		t.Error("optional unknown needs: warning")
 	}
@@ -487,7 +487,7 @@ func TestCheckNeeds(t *testing.T) {
 				Needs: []any{map[string]any{"pipeline": "other", "job": "j"}}},
 		},
 	}
-	if len(checkNeeds(p4)) != 0 { t.Error("cross-pipeline: clean") }
+	if len(checkNeeds(p4, nil)) != 0 { t.Error("cross-pipeline: clean") }
 
 	// needs later stage → error
 	p5 := &model.Pipeline{
@@ -501,7 +501,7 @@ func TestCheckNeeds(t *testing.T) {
 		},
 	}
 	// Only cross-stage ordering violations should be found
-	_ = checkNeeds(p5)
+	_ = checkNeeds(p5, nil)
 }
 
 func TestCheckNeeds_Cycle(t *testing.T) {
@@ -511,7 +511,7 @@ func TestCheckNeeds_Cycle(t *testing.T) {
 			"b": {Name: "b", Needs: []any{"a"}},
 		},
 	}
-	findings := checkNeeds(p)
+	findings := checkNeeds(p, nil)
 	for _, f := range findings {
 		if f.Rule == RuleNeedsCycle { return }
 	}
@@ -529,7 +529,7 @@ func TestCheckDependencies(t *testing.T) {
 				Dependencies: []string{"build-job"}},
 		},
 	}
-	if len(checkDependencies(p)) != 0 { t.Error("valid deps: clean") }
+	if len(checkDependencies(p, nil)) != 0 { t.Error("valid deps: clean") }
 
 	// unknown dep
 	p2 := &model.Pipeline{
@@ -537,7 +537,7 @@ func TestCheckDependencies(t *testing.T) {
 			"test-job": {Name: "test-job", Stage: "test", Dependencies: []string{"ghost"}},
 		},
 	}
-	if len(checkDependencies(p2)) != 1 { t.Error("unknown dep: error") }
+	if len(checkDependencies(p2, nil)) != 1 { t.Error("unknown dep: error") }
 
 	// dep in same or later stage → error
 	p3 := &model.Pipeline{
@@ -547,7 +547,23 @@ func TestCheckDependencies(t *testing.T) {
 			"test-job2": {Name: "test-job2", Stage: "test", Dependencies: []string{"test-job1"}},
 		},
 	}
-	if len(checkDependencies(p3)) != 1 { t.Error("same stage dep: error") }
+	if len(checkDependencies(p3, nil)) != 1 { t.Error("same stage dep: error") }
+}
+
+func TestCheckDependencies_SkippedJob(t *testing.T) {
+	p := &model.Pipeline{
+		Jobs: map[string]model.Job{
+			"skipped-job": {Name: "skipped-job", Stage: "test", Dependencies: []string{"ghost"}},
+		},
+	}
+	// Without skipping: reports unknown dependency.
+	if len(checkDependencies(p, nil)) == 0 {
+		t.Fatal("expected GL030 without skipped set, got none")
+	}
+	// With job skipped: suppressed.
+	if len(checkDependencies(p, map[string]bool{"skipped-job": true})) != 0 {
+		t.Error("expected no findings for skipped job")
+	}
 }
 
 // ── checkCacheKeyFiles ────────────────────────────────────────────────────────

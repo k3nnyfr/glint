@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.23] - 2026-06-25
+
+### Added
+
+- **Context-scoped linting** — when a context is supplied via `--branch`, `--tag`, `--source`, or `--var`, `glint check` now evaluates every job against that context before running lint rules. Jobs that are statically unreachable in the given context (i.e. their `rules:` block resolves to `JobSkipped`) are excluded from `needs:` and `dependencies:` cross-job checks (GL027–GL031). This eliminates false-positive errors for jobs that are intentionally gated to specific pipeline events (e.g. a deploy job with `rules: [{if: '$CI_COMMIT_TAG != ""'}]` does not generate a GL027 error on branch pipelines). Filtering applies only in single-context mode; multi-context mode (`--context`) always checks all jobs.
+
 ## [0.2.22] - 2026-06-25
 
 ### Added

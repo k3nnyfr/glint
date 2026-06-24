@@ -24,7 +24,7 @@ Pass `--branch`, `--tag`, `--source`, or `--var` to `glint check` or `glint grap
 - ~~**Single `=` operator**~~ — ✓ shipped v0.2.14; bare `=` accepted as alias for `==` in `rules:if:` expressions
 - ~~**`rules:changes:` evaluation**~~ — ✓ shipped v0.2.21; `--changes PATH` and `--changes-from REF` flags; doublestar glob matching (`*` within segment, `**` across segments); permissive when no file list provided
 - ~~**Multi-context simulation**~~ — ✓ shipped v0.2.22; `--context KEY=VALUE[,...]`; repeatable; prints a comparison table of `active`/`manual`/`skipped`/`blocked` per job across all contexts
-- **Context-scoped linting** — skip `needs:`/`dependencies:` cross-checks for jobs that are statically unreachable in the given context
+- ~~**Context-scoped linting**~~ — ✓ shipped v0.2.23; jobs evaluated as `JobSkipped` in the supplied context are excluded from `needs:`/`dependencies:` cross-checks (GL027–GL031) to eliminate false-positive errors for conditionally-gated jobs
 
 ---
 

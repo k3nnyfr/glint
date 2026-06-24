@@ -35,7 +35,7 @@ func TestSambaCI(t *testing.T) {
 		t.Logf("extends warning: job %q extends unknown %q", w.Job, w.Base)
 	}
 
-	findings := linter.Lint(p)
+	findings := linter.Lint(p, nil)
 
 	for _, f := range findings {
 		if f.Severity == linter.Error {
@@ -78,7 +78,7 @@ func TestSambaCIEntryFiles(t *testing.T) {
 				t.Logf("extends warning: job %q extends unknown %q", w.Job, w.Base)
 			}
 
-			findings := linter.Lint(p)
+			findings := linter.Lint(p, nil)
 			for _, f := range findings {
 				if f.Severity == linter.Error {
 					t.Errorf("unexpected error finding: %s", f)
