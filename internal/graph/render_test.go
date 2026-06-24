@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.k3nny.fr/glint/internal/cicontext"
 	"git.k3nny.fr/glint/internal/model"
 )
 
@@ -59,7 +60,18 @@ func TestChipColor(t *testing.T) {
 	if chipColor(model.Job{Trigger: "x"}) != "#6b4fbb" { t.Error("trigger color") }
 	if chipColor(model.Job{When: "manual"}) != "#fc6d26" { t.Error("manual color") }
 	if chipColor(model.Job{When: "delayed"}) != "#fca326" { t.Error("delayed color") }
+	if chipColor(model.Job{When: "on_failure"}) != "#d9534f" { t.Error("on_failure color") }
 	if chipColor(model.Job{}) != "#1f75cb" { t.Error("regular color") }
+}
+
+// ── imageString ───────────────────────────────────────────────────────────────
+
+func TestImageString(t *testing.T) {
+	if imageString("alpine") != "alpine" { t.Error("string form") }
+	if imageString(map[string]any{"name": "golang:1.21"}) != "golang:1.21" { t.Error("map form") }
+	if imageString(map[string]any{"other": "x"}) != "" { t.Error("map without name key") }
+	if imageString(nil) != "" { t.Error("nil") }
+	if imageString(42) != "" { t.Error("unexpected type") }
 }
 
 // ── drawChipIcon ──────────────────────────────────────────────────────────────
@@ -72,6 +84,7 @@ func TestDrawChipIcon(t *testing.T) {
 		{model.Job{Trigger: "x"}, "<polyline"},
 		{model.Job{When: "manual"}, "<polygon"},
 		{model.Job{When: "delayed"}, "<circle"},
+		{model.Job{When: "on_failure"}, "<line"},
 		{model.Job{}, "<polyline"},
 	}
 	for _, tc := range cases {
@@ -86,7 +99,7 @@ func TestDrawChipIcon(t *testing.T) {
 // ── pipelineSVG ───────────────────────────────────────────────────────────────
 
 func TestPipelineSVG_Empty(t *testing.T) {
-	svg := pipelineSVG(&model.Pipeline{})
+	svg := pipelineSVG(&model.Pipeline{}, nil)
 	if !strings.Contains(svg, "no jobs defined") {
 		t.Errorf("expected 'no jobs defined', got:\n%s", svg)
 	}
@@ -100,13 +113,32 @@ func TestPipelineSVG_ClassicMode(t *testing.T) {
 			"test-job":  {Name: "test-job", Stage: "test"},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	if !strings.Contains(svg, "<svg") { t.Error("expected <svg") }
 	if !strings.Contains(svg, "build-job") { t.Error("expected build-job") }
 	if !strings.Contains(svg, "test-job") { t.Error("expected test-job") }
-	// Classic mode connector
-	if !strings.Contains(svg, "<polyline") && !strings.Contains(svg, "<line") {
-		t.Error("expected connector in classic mode")
+	// Classic mode bus-bar draws <line> elements for connectors
+	if !strings.Contains(svg, "<line") {
+		t.Error("expected <line> connector in classic mode")
+	}
+}
+
+func TestPipelineSVG_ClassicMode_MultiJob(t *testing.T) {
+	// Two source jobs, two destination jobs → bus-bar with vertical segment
+	p := &model.Pipeline{
+		Stages: []string{"build", "test"},
+		Jobs: map[string]model.Job{
+			"build-a": {Name: "build-a", Stage: "build"},
+			"build-b": {Name: "build-b", Stage: "build"},
+			"test-a":  {Name: "test-a", Stage: "test"},
+			"test-b":  {Name: "test-b", Stage: "test"},
+		},
+	}
+	svg := pipelineSVG(p, nil)
+	// Bus bar: horizontal stubs from each src + dst, plus a vertical bus line
+	// and an arrowhead polygon for each dst job.
+	if !strings.Contains(svg, "<polygon") {
+		t.Error("expected arrowhead <polygon> in multi-job classic mode")
 	}
 }
 
@@ -118,7 +150,7 @@ func TestPipelineSVG_DAGMode(t *testing.T) {
 			"test-job":  {Name: "test-job", Stage: "test", Needs: []any{"build-job"}},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	// DAG mode draws <path> bezier curves
 	if !strings.Contains(svg, "<path") {
 		t.Error("expected <path> connector in DAG mode")
@@ -126,7 +158,7 @@ func TestPipelineSVG_DAGMode(t *testing.T) {
 }
 
 func TestPipelineSVG_DAGMode_StraightConnector(t *testing.T) {
-	// Two stages at same height → straight <line> connector in classic mode
+	// Two stages at same height → straight connector in classic mode
 	p := &model.Pipeline{
 		Stages: []string{"a", "b"},
 		Jobs: map[string]model.Job{
@@ -134,7 +166,7 @@ func TestPipelineSVG_DAGMode_StraightConnector(t *testing.T) {
 			"j2": {Name: "j2", Stage: "b"},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	if !strings.Contains(svg, "<svg") { t.Error("expected <svg") }
 }
 
@@ -142,16 +174,21 @@ func TestPipelineSVG_AllJobTypes(t *testing.T) {
 	p := &model.Pipeline{
 		Stages: []string{"deploy"},
 		Jobs: map[string]model.Job{
-			"manual-job":  {Name: "manual-job", Stage: "deploy", When: "manual"},
-			"delayed-job": {Name: "delayed-job", Stage: "deploy", When: "delayed"},
-			"trigger-job": {Name: "trigger-job", Stage: "deploy", Trigger: "other/project"},
+			"manual-job":     {Name: "manual-job", Stage: "deploy", When: "manual"},
+			"delayed-job":    {Name: "delayed-job", Stage: "deploy", When: "delayed"},
+			"trigger-job":    {Name: "trigger-job", Stage: "deploy", Trigger: "other/project"},
+			"onfailure-job":  {Name: "onfailure-job", Stage: "deploy", When: "on_failure"},
 		},
 	}
-	svg := pipelineSVG(p)
-	// Each type has its own color in the SVG
+	svg := pipelineSVG(p, nil)
 	if !strings.Contains(svg, "#fc6d26") { t.Error("expected manual color") }
 	if !strings.Contains(svg, "#fca326") { t.Error("expected delayed color") }
 	if !strings.Contains(svg, "#6b4fbb") { t.Error("expected trigger color") }
+	if !strings.Contains(svg, "#d9534f") { t.Error("expected on_failure color") }
+	// on_failure chips have a dashed border
+	if !strings.Contains(svg, `stroke-dasharray="4,3"`) {
+		t.Error("expected dashed border on on_failure chip")
+	}
 }
 
 func TestPipelineSVG_JobNoStage(t *testing.T) {
@@ -160,7 +197,7 @@ func TestPipelineSVG_JobNoStage(t *testing.T) {
 			"myjob": {Name: "myjob"},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	if !strings.Contains(svg, "myjob") { t.Error("expected myjob") }
 }
 
@@ -172,8 +209,83 @@ func TestPipelineSVG_CrossPipelineNeed(t *testing.T) {
 				Needs: []any{map[string]any{"pipeline": "other", "job": "x"}}},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	if !strings.Contains(svg, "<svg") { t.Error("expected <svg") }
+}
+
+func TestPipelineSVG_Tooltip(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs: map[string]model.Job{
+			"build-job": {
+				Name:  "build-job",
+				Stage: "build",
+				When:  "on_success",
+				Image: "golang:1.21",
+				Needs: []any{"prep-job"},
+			},
+		},
+	}
+	svg := pipelineSVG(p, nil)
+	// Tooltip <title> and <desc> should appear inside the <g data-job> wrapper
+	if !strings.Contains(svg, `<title>build-job</title>`) {
+		t.Error("expected <title>build-job</title>")
+	}
+	if !strings.Contains(svg, `<desc>`) {
+		t.Error("expected <desc> element")
+	}
+	if !strings.Contains(svg, "image: golang:1.21") {
+		t.Error("expected image in desc")
+	}
+	if !strings.Contains(svg, "needs: prep-job") {
+		t.Error("expected needs in desc")
+	}
+	if !strings.Contains(svg, `data-job="build-job"`) {
+		t.Error("expected data-job attribute")
+	}
+}
+
+func TestPipelineSVG_SkippedJob(t *testing.T) {
+	// A job with rules that never match in the given context should be greyed out.
+	p := &model.Pipeline{
+		Stages: []string{"deploy"},
+		Jobs: map[string]model.Job{
+			"deploy-job": {
+				Name:   "deploy-job",
+				Stage:  "deploy",
+				Script: []any{"deploy.sh"},
+				Rules: []model.Rule{
+					{If: `$CI_COMMIT_TAG != ""`, When: "on_success"},
+				},
+			},
+		},
+	}
+	// Branch context: CI_COMMIT_TAG is empty → rule doesn't match → job skipped
+	ctx := cicontext.New("main", "", "push", nil)
+	svg := pipelineSVG(p, ctx)
+
+	// Skipped jobs use grey (#868686) instead of the regular blue
+	if !strings.Contains(svg, `fill="#868686"`) {
+		t.Error("expected grey fill for skipped job circle")
+	}
+	// Skipped state should appear in the tooltip desc
+	if !strings.Contains(svg, "state: skipped") {
+		t.Error("expected 'state: skipped' in tooltip desc")
+	}
+}
+
+func TestPipelineSVG_ContextNil(t *testing.T) {
+	// nil context → no skipped jobs, regular colors
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs: map[string]model.Job{
+			"j": {Name: "j", Stage: "build"},
+		},
+	}
+	svg := pipelineSVG(p, nil)
+	if !strings.Contains(svg, `fill="#1f75cb"`) {
+		t.Error("expected regular blue fill with nil context")
+	}
 }
 
 // ── RenderPipeline ────────────────────────────────────────────────────────────
@@ -186,7 +298,7 @@ func TestRenderPipeline(t *testing.T) {
 		},
 	}
 	dir := t.TempDir()
-	path, err := RenderPipeline(p, dir)
+	path, err := RenderPipeline(p, dir, nil)
 	if err != nil {
 		t.Fatalf("RenderPipeline: %v", err)
 	}
@@ -202,7 +314,7 @@ func TestRenderPipeline_InvalidDir(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := RenderPipeline(&model.Pipeline{}, filePath+"/nested")
+	_, err := RenderPipeline(&model.Pipeline{}, filePath+"/nested", nil)
 	if err == nil {
 		t.Error("expected error writing to path under a file")
 	}
@@ -222,7 +334,7 @@ func TestRenderPipeline_WriteFileFails(t *testing.T) {
 		Stages: []string{"build"},
 		Jobs:   map[string]model.Job{"j": {Name: "j", Stage: "build"}},
 	}
-	_, err := RenderPipeline(p, dir)
+	_, err := RenderPipeline(p, dir, nil)
 	if err == nil {
 		t.Error("expected error when writing SVG to read-only directory")
 	}
@@ -241,7 +353,7 @@ func TestRenderPipeline_SVGFallback(t *testing.T) {
 		Jobs:   map[string]model.Job{"j": {Name: "j", Stage: "build"}},
 	}
 	dir := t.TempDir()
-	path, err := RenderPipeline(p, dir)
+	path, err := RenderPipeline(p, dir, nil)
 	if err != nil {
 		t.Fatalf("RenderPipeline: %v", err)
 	}
@@ -264,7 +376,7 @@ func TestConvertToPNG_NoConverter(t *testing.T) {
 
 func TestConvertToPNG_FakeConverter(t *testing.T) {
 	// Install a fake rsvg-convert that just creates the output file and exits 0.
-	// This exercises the "return true" branch (line 72) and os.Remove in RenderPipeline.
+	// This exercises the "return true" branch and os.Remove in RenderPipeline.
 	binDir := t.TempDir()
 	script := "#!/bin/sh\n# rsvg-convert --output <out> <in>\ncp \"$3\" \"$2\"\n"
 	fakeBin := binDir + "/rsvg-convert"
@@ -303,7 +415,7 @@ func TestRenderPipeline_PNGConversion(t *testing.T) {
 		Jobs:   map[string]model.Job{"j": {Name: "j", Stage: "build"}},
 	}
 	dir := t.TempDir()
-	path, err := RenderPipeline(p, dir)
+	path, err := RenderPipeline(p, dir, nil)
 	if err != nil {
 		t.Fatalf("RenderPipeline: %v", err)
 	}
@@ -315,7 +427,7 @@ func TestRenderPipeline_PNGConversion(t *testing.T) {
 // ── pipelineSVG coverage gaps ─────────────────────────────────────────────────
 
 func TestPipelineSVG_LShapedElbow(t *testing.T) {
-	// Classic mode with unequal stage sizes → different column heights → L-shaped elbow
+	// Classic mode with unequal stage sizes → vertical bus bar required
 	p := &model.Pipeline{
 		Stages: []string{"build", "test"},
 		Jobs: map[string]model.Job{
@@ -324,9 +436,10 @@ func TestPipelineSVG_LShapedElbow(t *testing.T) {
 			"j3": {Name: "j3", Stage: "test"},
 		},
 	}
-	svg := pipelineSVG(p)
-	if !strings.Contains(svg, "<polyline") {
-		t.Error("expected <polyline> for L-shaped elbow connector")
+	svg := pipelineSVG(p, nil)
+	// The bus bar is a <line>; arrowheads are <polygon>
+	if !strings.Contains(svg, "<polygon") {
+		t.Error("expected <polygon> arrowhead in bus-bar connector")
 	}
 }
 
@@ -339,9 +452,82 @@ func TestPipelineSVG_DAGNeedNotInPositionMap(t *testing.T) {
 			".hidden-template": {Name: ".hidden-template", Stage: "build"},
 		},
 	}
-	svg := pipelineSVG(p)
+	svg := pipelineSVG(p, nil)
 	// Should render without panic; .hidden-template is not visible so no connector drawn.
 	if !strings.Contains(svg, "<svg") {
 		t.Error("expected valid SVG output")
 	}
+}
+
+// ── RenderHTML ────────────────────────────────────────────────────────────────
+
+func TestRenderHTML(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs: map[string]model.Job{
+			"build-job": {Name: "build-job", Stage: "build"},
+		},
+	}
+	dir := t.TempDir()
+	path, err := RenderHTML(p, dir, nil)
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
+	}
+	if !strings.HasSuffix(path, ".html") {
+		t.Errorf("expected .html output, got %q", path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading output: %v", err)
+	}
+	html := string(data)
+	if !strings.Contains(html, "<!DOCTYPE html>") { t.Error("expected DOCTYPE") }
+	if !strings.Contains(html, "<svg") { t.Error("expected embedded <svg") }
+	if !strings.Contains(html, "build-job") { t.Error("expected job name in HTML") }
+	if !strings.Contains(html, "applyTransform") { t.Error("expected JS pan/zoom function") }
+	if !strings.Contains(html, "sidebar") { t.Error("expected sidebar element") }
+}
+
+func TestRenderHTML_InvalidDir(t *testing.T) {
+	dir := t.TempDir()
+	filePath := dir + "/notadir"
+	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := RenderHTML(&model.Pipeline{}, filePath+"/nested", nil)
+	if err == nil {
+		t.Error("expected error writing to path under a file")
+	}
+}
+
+func TestRenderHTML_WriteFileFails(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping as root — file permissions don't apply")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs:   map[string]model.Job{"j": {Name: "j", Stage: "build"}},
+	}
+	_, err := RenderHTML(p, dir, nil)
+	if err == nil {
+		t.Error("expected error when writing HTML to read-only directory")
+	}
+}
+
+// ── htmlPage ──────────────────────────────────────────────────────────────────
+
+func TestHtmlPage(t *testing.T) {
+	svgContent := `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect/></svg>`
+	html := htmlPage(svgContent)
+	if !strings.Contains(html, "<!DOCTYPE html>") { t.Error("expected DOCTYPE") }
+	if !strings.Contains(html, svgContent) { t.Error("expected SVG embedded in HTML") }
+	if !strings.Contains(html, "id=\"viewport\"") { t.Error("expected viewport element") }
+	if !strings.Contains(html, "id=\"sidebar\"") { t.Error("expected sidebar element") }
+	if !strings.Contains(html, "applyTransform") { t.Error("expected JS transform function") }
 }

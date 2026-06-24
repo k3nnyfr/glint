@@ -445,7 +445,8 @@ func cmdGraph(args []string) {
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
 	cacheDir := fs.String("cache-dir", "", "directory to cache fetched remote includes (created if needed)")
 	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
-	out := fs.String("out", "glint-out", "output directory for Mermaid graph files (pipeline mode)")
+	out := fs.String("out", "glint-out", "output directory for rendered graph files (pipeline mode)")
+	format := fs.String("format", "svg", "pipeline output format: svg, mermaid, or html")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Visualise the pipeline as a job tree and/or Mermaid graph.
@@ -461,6 +462,15 @@ Options:
       --out <DIR>
           Output directory for rendered graph files.
           Used by the pipeline and all modes only. [default: glint-out]
+
+      --format <FORMAT>
+          Output format for pipeline mode: svg (default), mermaid, or html.
+          svg:     write a GitLab CI-style SVG/PNG to --out (converted to PNG
+                   when rsvg-convert, inkscape, or magick is available).
+          mermaid: print a Mermaid flowchart to stdout (paste into mermaid.live).
+          html:    write a self-contained HTML file with pan/zoom and a
+                   job-detail sidebar to --out.
+          [default: svg] [possible values: svg, mermaid, html]
 
       --token <TOKEN>
           GitLab personal access token. Used to fetch remote project: includes
@@ -518,6 +528,8 @@ Examples:
   glint graph includes .gitlab-ci.yml > includes.mmd
   glint graph pipeline .gitlab-ci.yml
   glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
+  glint graph pipeline --format mermaid .gitlab-ci.yml
+  glint graph pipeline --format html .gitlab-ci.yml
   glint graph all .gitlab-ci.yml > includes.mmd
 `)
 	}
@@ -602,16 +614,29 @@ Examples:
 	case "includes":
 		fmt.Print(graph.Includes(path, p.Include, cfg))
 	case "pipeline":
-		outPath, err := graph.RenderPipeline(p, *out)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
-			exit(2)
-			return
+		switch *format {
+		case "mermaid":
+			fmt.Print(graph.Pipeline(p))
+		case "html":
+			outPath, err := graph.RenderHTML(p, *out, ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
+				exit(2)
+				return
+			}
+			fmt.Println(outPath)
+		default: // "svg"
+			outPath, err := graph.RenderPipeline(p, *out, ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
+				exit(2)
+				return
+			}
+			fmt.Println(outPath)
 		}
-		fmt.Println(outPath)
 	case "all":
 		fmt.Print(graph.Includes(path, p.Include, cfg))
-		outPath, err := graph.RenderPipeline(p, *out)
+		outPath, err := graph.RenderPipeline(p, *out, ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: rendering pipeline graph: %v\n", err)
 			exit(2)

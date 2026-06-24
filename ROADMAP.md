@@ -71,12 +71,12 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 - ~~**Terminal job tree**~~ — ✓ shipped in v0.2.0 as `glint graph tree`; stages as branches, jobs as leaves, context-aware annotations
 - ~~**`glint graph includes` shows jobs per file**~~ — ✓ shipped post-v0.2.0; each include node shows the jobs it defines as dashed-arrow rounded nodes in a distinct style
-- **Multi-job connector accuracy** — draw one connector per job pair rather than one per stage pair in classic mode, so pipelines with uneven columns look correct
-- **Job tooltip / detail panel** — embed a hidden `<title>` and `<desc>` per chip so SVG viewers show `stage`, `when`, `image`, and `needs` on hover
-- **`when: on_failure` visual distinction** — dashed border or distinct icon for failure-path jobs
-- **Blocked / skipped state colouring** — grey out jobs that are statically unreachable given known `rules:` conditions
-- **Interactive HTML output** — self-contained `.html` file with pan/zoom and a job-detail sidebar; no external dependencies
-- **Mermaid pipeline output** — keep `pipeline.go` but wire it up through `--graph pipeline --format mermaid` for users who want to paste into mermaid.live
+- ~~**Multi-job connector accuracy**~~ — ✓ shipped v0.2.25; classic mode uses a bus-bar pattern (vertical rail at the midpoint + horizontal stubs per job) instead of a single center-to-center line, so uneven columns look correct
+- ~~**Job tooltip / detail panel**~~ — ✓ shipped v0.2.25; each chip is wrapped in `<g data-job="…"><title>…</title><desc>…</desc>` — SVG viewers show stage, when, image, and needs on hover; HTML output uses the data for the sidebar
+- ~~**`when: on_failure` visual distinction**~~ — ✓ shipped v0.2.25; dashed chip border + X-mark icon + red circle (`#d9534f`); legend entry added; Mermaid `on_failure` class wired
+- ~~**Blocked / skipped state colouring**~~ — ✓ shipped v0.2.25; `glint graph pipeline` accepts context flags (`--branch`, `--tag`, etc.); jobs evaluated as skipped are greyed out (`#868686`) with dimmed text and no icon
+- ~~**Interactive HTML output**~~ — ✓ shipped v0.2.25; `glint graph pipeline --format html` writes a self-contained `.html` file with mouse pan/zoom and a click-to-open job-detail sidebar; no external dependencies
+- ~~**Mermaid pipeline output**~~ — ✓ shipped v0.2.25; `glint graph pipeline --format mermaid` prints a Mermaid flowchart to stdout (paste into mermaid.live)
 
 ---
 
@@ -113,7 +113,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20; GL044 added v0.2.24
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20; GL044 added v0.2.24; graph improvements shipped v0.2.25
 - ~~**`glint explain <rule-id>`**~~ — ✓ shipped v0.2.20; prints rule description, rationale, bad-YAML example, and fix; `glint explain` (no arg) lists all rules
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`

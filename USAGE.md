@@ -206,7 +206,16 @@ glint graph includes .gitlab-ci.yml > includes.mmd
 glint graph pipeline .gitlab-ci.yml
 # prints the output path, e.g.: glint-out/pipeline-20260614-143022.png
 
-# Mermaid to stdout + pipeline file path to stderr
+# Pipeline graph with skipped-job colouring (grey out context-unreachable jobs)
+glint graph pipeline --branch main .gitlab-ci.yml
+
+# Interactive HTML with pan/zoom and job-detail sidebar
+glint graph pipeline --format html .gitlab-ci.yml
+
+# Mermaid flowchart of the pipeline to stdout
+glint graph pipeline --format mermaid .gitlab-ci.yml
+
+# Mermaid includes graph to stdout + pipeline SVG file path to stderr
 glint graph all .gitlab-ci.yml > includes.mmd
 
 # Custom output directory
@@ -224,6 +233,28 @@ include type: orange (main file), purple (project), green (component), blue
 
 **Pipeline graph** — GitLab CI-style SVG rendered to a timestamped file.
 Converted to PNG when `rsvg-convert`, `inkscape`, or `magick` is available.
+
+**Pipeline graph formats** (`--format`):
+
+| Flag | Output |
+|------|--------|
+| `svg` (default) | Write SVG/PNG to `--out` |
+| `html` | Write self-contained HTML to `--out` — inline SVG with mouse pan/zoom, drag, and a job-detail sidebar that opens on chip click |
+| `mermaid` | Print Mermaid flowchart to stdout |
+
+**Visual chip styles:**
+
+| Type | Colour | Icon | Border |
+|------|--------|------|--------|
+| regular | blue `#1f75cb` | checkmark | solid |
+| manual | orange `#fc6d26` | play triangle | solid |
+| trigger | purple `#6b4fbb` | chevron | solid |
+| delayed | yellow `#fca326` | clock | solid |
+| on_failure | red `#d9534f` | X mark | dashed |
+| skipped (context) | grey `#868686` | none | solid |
+
+Pass context flags (`--branch`, `--tag`, `--source`, `--var`) to grey out jobs
+that would be skipped in the given pipeline event.
 DAG mode (Bézier arrows between jobs) activates automatically when any job has
 a `needs:` list; classic mode uses stage-column connectors otherwise.
 

@@ -282,8 +282,29 @@ jobs or pipeline-level findings.
 | `pipeline` | GitLab CI-style SVG/PNG written to `--out` directory (default: `glint-out/`); converted to PNG when `rsvg-convert`, `inkscape`, or `magick` is available |
 | `all` | `includes` to stdout + `pipeline` file path to stderr |
 
+**`glint graph pipeline --format <FORMAT>`**
+
+| Format | Effect |
+|--------|--------|
+| `svg` (default) | Write GitLab CI-style SVG/PNG to `--out` |
+| `mermaid` | Print Mermaid flowchart to stdout (paste into [mermaid.live](https://mermaid.live)) |
+| `html` | Write self-contained HTML to `--out` with mouse pan/zoom and a click-to-open job-detail sidebar |
+
+**Visual distinctions in SVG and HTML output:**
+
+- **Regular** — blue circle with checkmark
+- **Manual** — orange circle with play triangle
+- **Trigger** — purple circle with chevron
+- **Delayed** — yellow circle with clock
+- **`when: on_failure`** — red circle (`#d9534f`) with X mark; dashed chip border
+- **Skipped** (with `--branch`/`--tag`/`--source` context flags) — grey circle, dimmed job name
+
 In DAG pipelines (any job has `needs:`) the pipeline graph uses job-to-job
-Bézier connectors instead of stage-to-stage lines.
+Bézier connectors. In classic mode a bus-bar pattern (vertical rail + per-job
+stubs) accurately connects every job across adjacent stages.
+
+Each chip carries a `<title>` and `<desc>` with stage, when, image, and needs —
+shown as a tooltip in SVG viewers and as a sidebar panel in HTML output.
 
 ---
 

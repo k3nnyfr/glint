@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.25] - 2026-06-25
+
+### Added
+
+- **`when: on_failure` visual distinction** — SVG and HTML pipeline graphs now render failure-path jobs with a red status circle (`#d9534f`), an X-mark icon, and a dashed chip border. A new `on_failure` legend entry and Mermaid `classDef` entry are included.
+
+- **Job tooltip / detail panel** — every job chip in SVG and HTML output is wrapped in a `<g data-job="…"><title>…</title><desc>…</desc>` group. SVG viewers that support `<title>` show the job name on hover; `<desc>` carries `stage`, `when`, `image`, and `needs` details. In HTML output the sidebar reads these directly from the DOM.
+
+- **Multi-job connector accuracy** — classic mode (no `needs:`) now uses a bus-bar connector: horizontal stubs from every job in stage N to a vertical rail at the midpoint, then stubs from the rail to every job in stage N+1. The previous single center-to-center line left top and bottom jobs visually disconnected.
+
+- **Skipped / blocked state colouring** — `glint graph pipeline` now accepts the same context flags as `glint check` (`--branch`, `--tag`, `--source`, `--var`, `--changes`, `--changes-from`). Jobs that evaluate to `JobSkipped` in the given context are rendered with a grey circle (`#868686`) and dimmed job name. When no context flags are given, all jobs render with their normal colours.
+
+- **Interactive HTML output** (`--format html`) — `glint graph pipeline --format html` writes a self-contained `.html` file to `--out`. The page embeds the SVG inline with mouse-wheel zoom (centred on cursor), drag-to-pan, double-click-to-reset, and a collapsible sidebar showing job details on chip click. No external dependencies; works offline.
+
+- **Mermaid pipeline output** (`--format mermaid`) — `glint graph pipeline --format mermaid` prints the existing Mermaid flowchart (`pipeline.go`) to stdout. Suitable for pasting into [mermaid.live](https://mermaid.live) or embedding in Markdown documentation.
+
+- **`imageString` helper** — internal utility that extracts the image name from a `Job.Image` field that may be a plain string or a map (`image: {name: ..., entrypoint: ...}`); used by the tooltip desc builder.
+
 ## [0.2.24] - 2026-06-25
 
 ### Added

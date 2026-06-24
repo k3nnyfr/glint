@@ -105,8 +105,21 @@ func TestSanitizeID(t *testing.T) {
 func TestJobClass(t *testing.T) {
 	if jobClass(model.Job{When: "manual"}) != "manual" { t.Error("manual") }
 	if jobClass(model.Job{When: "delayed"}) != "delayed" { t.Error("delayed") }
+	if jobClass(model.Job{When: "on_failure"}) != "on_failure" { t.Error("on_failure") }
 	if jobClass(model.Job{Trigger: "x"}) != "trigger" { t.Error("trigger") }
 	if jobClass(model.Job{}) != "regular" { t.Error("regular") }
+}
+
+func TestPipeline_OnFailureClass(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"cleanup"},
+		Jobs: map[string]model.Job{
+			"cleanup-job": {Name: "cleanup-job", Stage: "cleanup", When: "on_failure"},
+		},
+	}
+	out := Pipeline(p)
+	if !strings.Contains(out, "on_failure") { t.Error("expected on_failure class") }
+	if !strings.Contains(out, "#d9534f") { t.Error("expected on_failure color in classDef") }
 }
 
 // ── needsJobName ──────────────────────────────────────────────────────────────

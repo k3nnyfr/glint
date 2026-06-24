@@ -27,6 +27,7 @@ func Pipeline(p *model.Pipeline) string {
 	w("    classDef manual fill:#fc6d26,stroke:#e56b1f,color:#fff")
 	w("    classDef trigger fill:#6b4fbb,stroke:#5a3fa0,color:#fff")
 	w("    classDef delayed fill:#fca326,stroke:#d98a1e,color:#333")
+	w("    classDef on_failure fill:#d9534f,stroke:#c0392b,color:#fff")
 	w("")
 
 	// Collect visible (non-template) job names; sort for stable output.
@@ -149,6 +150,8 @@ func jobClass(job model.Job) string {
 		return "manual"
 	case "delayed":
 		return "delayed"
+	case "on_failure":
+		return "on_failure"
 	}
 	return "regular"
 }
