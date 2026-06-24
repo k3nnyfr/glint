@@ -823,6 +823,355 @@ build-job:
 	}
 }
 
+// ── parseContextSpec ─────────────────────────────────────────────────────────
+
+func TestParseContextSpec(t *testing.T) {
+	cases := []struct {
+		spec      string
+		branch    string
+		tag       string
+		source    string
+		extraVars []string
+	}{
+		{"branch=main", "main", "", "", nil},
+		{"tag=v1.0.0", "", "v1.0.0", "", nil},
+		{"source=schedule", "", "", "schedule", nil},
+		{"branch=main,source=push", "main", "", "push", nil},
+		{"branch=main,DEPLOY=prod", "main", "", "", []string{"DEPLOY=prod"}},
+		{"DEPLOY=prod,ENV=staging", "", "", "", []string{"DEPLOY=prod", "ENV=staging"}},
+		{"branch=main,tag=v1,source=push,X=y", "main", "v1", "push", []string{"X=y"}},
+		{"branch=main, ,source=push", "main", "", "push", nil}, // spaces and empty segments
+		{"", "", "", "", nil},
+		{"noequals", "", "", "", []string{"noequals"}}, // no = → whole token as extraVar
+		{"BRANCH=develop", "develop", "", "", nil}, // case-insensitive key matching
+	}
+	for _, tc := range cases {
+		t.Run(tc.spec, func(t *testing.T) {
+			b, tg, s, ev := parseContextSpec(tc.spec)
+			if b != tc.branch {
+				t.Errorf("branch: want %q got %q", tc.branch, b)
+			}
+			if tg != tc.tag {
+				t.Errorf("tag: want %q got %q", tc.tag, tg)
+			}
+			if s != tc.source {
+				t.Errorf("source: want %q got %q", tc.source, s)
+			}
+			if len(ev) != len(tc.extraVars) {
+				t.Errorf("extraVars len: want %d got %d (%v)", len(tc.extraVars), len(ev), ev)
+				return
+			}
+			for i := range ev {
+				if ev[i] != tc.extraVars[i] {
+					t.Errorf("extraVars[%d]: want %q got %q", i, tc.extraVars[i], ev[i])
+				}
+			}
+		})
+	}
+}
+
+// ── sortedJobNames ────────────────────────────────────────────────────────────
+
+func TestSortedJobNames_Order(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"build", "test", "deploy"},
+		Jobs: map[string]model.Job{
+			"deploy-job": {Stage: "deploy"},
+			"test-b":     {Stage: "test"},
+			"test-a":     {Stage: "test"},
+			"build-job":  {Stage: "build"},
+			".hidden":    {Stage: "build"}, // excluded
+		},
+	}
+	got := sortedJobNames(p)
+	want := []string{"build-job", "test-a", "test-b", "deploy-job"}
+	if len(got) != len(want) {
+		t.Fatalf("want %v got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("[%d]: want %q got %q", i, want[i], got[i])
+		}
+	}
+}
+
+func TestSortedJobNames_UnknownStage(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs: map[string]model.Job{
+			"build-job":   {Stage: "build"},
+			"orphan-job":  {Stage: "nonexistent"},
+		},
+	}
+	got := sortedJobNames(p)
+	if len(got) != 2 {
+		t.Fatalf("want 2 jobs, got %v", got)
+	}
+	if got[0] != "build-job" {
+		t.Errorf("expected build-job first, got %q", got[0])
+	}
+	if got[1] != "orphan-job" {
+		t.Errorf("expected orphan-job last, got %q", got[1])
+	}
+}
+
+func TestSortedJobNames_Empty(t *testing.T) {
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs:   map[string]model.Job{".hidden": {Stage: "build"}},
+	}
+	got := sortedJobNames(p)
+	if len(got) != 0 {
+		t.Errorf("want empty, got %v", got)
+	}
+}
+
+// ── printContextTable ─────────────────────────────────────────────────────────
+
+func TestPrintContextTable_Empty(t *testing.T) {
+	// Pipeline with no visible jobs: should return without printing.
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs:   map[string]model.Job{".hidden": {Stage: "build"}},
+	}
+	// No panic expected, no output to verify.
+	printContextTable(p, nil, nil, nil)
+}
+
+func TestPrintContextTable_ActiveSkipped(t *testing.T) {
+	// Job always active.
+	content := `
+stages: [build, deploy]
+build-job:
+  stage: build
+  script: make
+deploy-job:
+  stage: deploy
+  script: make deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+`
+	path := writePipeline(t, content)
+	p, err := model.Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx1 := cicontext.New("main", "", "push", nil)
+	ctx2 := cicontext.New("develop", "", "push", nil)
+	enrichContext(ctx1, p)
+	enrichContext(ctx2, p)
+
+	// Just ensure it doesn't panic; output goes to real stdout in tests.
+	printContextTable(p, []*cicontext.Context{ctx1, ctx2},
+		[]string{"branch=main", "branch=develop"}, []bool{true, true})
+}
+
+func TestPrintContextTable_Blocked(t *testing.T) {
+	// A context where workflow:rules: blocks the pipeline.
+	content := `
+stages: [build]
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+build-job:
+  stage: build
+  script: make
+`
+	path := writePipeline(t, content)
+	p, err := model.Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx1 := cicontext.New("main", "", "push", nil)
+	ctx2 := cicontext.New("develop", "", "push", nil)
+	r1 := enrichContext(ctx1, p)
+	r2 := enrichContext(ctx2, p)
+
+	printContextTable(p, []*cicontext.Context{ctx1, ctx2},
+		[]string{"branch=main", "branch=develop"}, []bool{r1, r2})
+}
+
+func TestPrintContextTable_ManualState(t *testing.T) {
+	content := `
+stages: [build]
+build-job:
+  stage: build
+  script: make
+  rules:
+    - when: manual
+`
+	path := writePipeline(t, content)
+	p, err := model.Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := cicontext.New("main", "", "push", nil)
+	enrichContext(ctx, p)
+	printContextTable(p, []*cicontext.Context{ctx}, []string{"branch=main"}, []bool{true})
+}
+
+func TestPrintContextTable_ShortLabel(t *testing.T) {
+	// Short label "x" (1 char) ensures a state string ("skipped", 7 chars) triggers
+	// the ctxCols[c] = len(s) branch in printContextTable.
+	content := `
+stages: [build]
+build-job:
+  stage: build
+  script: make
+  rules:
+    - if: '$CI_COMMIT_TAG != ""'
+      when: on_success
+    - when: never
+`
+	path := writePipeline(t, content)
+	p, err := model.Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := cicontext.New("main", "", "push", nil)
+	enrichContext(ctx, p)
+	// Label "x" is shorter than "skipped" (7 chars), covering ctxCols width-expansion.
+	printContextTable(p, []*cicontext.Context{ctx}, []string{"x"}, []bool{true})
+}
+
+// ── cmdCheck multi-context ───────────────────────────────────────────────────
+
+func TestCmdCheck_MultiContext_Single(t *testing.T) {
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "branch=main", path})
+	if *code != -1 {
+		t.Errorf("multi-context single: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_Multiple(t *testing.T) {
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "branch=main", "--context", "branch=develop", path})
+	if *code != -1 {
+		t.Errorf("multi-context multiple: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_WithExtraVar(t *testing.T) {
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "branch=main,DEPLOY=prod", path})
+	if *code != -1 {
+		t.Errorf("multi-context with extra var: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_ErrorPipeline(t *testing.T) {
+	code := captureExit(t)
+	content := `
+stages: [build]
+test-job:
+  stage: nonexistent
+  script: echo
+`
+	path := writePipeline(t, content)
+	cmdCheck([]string{"--context", "branch=main", path})
+	if *code != 1 {
+		t.Errorf("multi-context error pipeline: want exit(1), got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_SkipsImplicitDefaults(t *testing.T) {
+	// When --context is given, implicit defaults (branch=main, source=push) must not be set.
+	// This is a smoke test: the command must complete without panicking.
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "tag=v1.0.0", path})
+	if *code == 2 {
+		t.Errorf("multi-context tag: unexpected exit(2)")
+	}
+}
+
+func TestCmdCheck_MultiContext_WithChanges(t *testing.T) {
+	code := captureExit(t)
+	content := `
+stages: [build]
+build-job:
+  stage: build
+  script: make
+  rules:
+    - changes: [src/**]
+      when: on_success
+`
+	path := writePipeline(t, content)
+	cmdCheck([]string{
+		"--context", "branch=main",
+		"--changes", "src/app.go",
+		path,
+	})
+	if *code != -1 {
+		t.Errorf("multi-context+changes: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_WithChangesFrom(t *testing.T) {
+	orig := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return []byte("src/app.go\n"), nil
+	}
+	t.Cleanup(func() { execCommandOutput = orig })
+
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "branch=main", "--changes-from", "origin/main", path})
+	if *code != -1 {
+		t.Errorf("multi-context+changes-from: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_ChangesFrom_EmptyDiff(t *testing.T) {
+	orig := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return []byte(""), nil
+	}
+	t.Cleanup(func() { execCommandOutput = orig })
+
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	// reliable=true, allChanged nil → allChanged = []string{} guard hit in multi-context path
+	cmdCheck([]string{"--context", "branch=main", "--changes-from", "origin/main", path})
+	if *code != -1 {
+		t.Errorf("multi-context+changes-from empty diff: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_ChangesFrom_Fails(t *testing.T) {
+	orig := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("not a git repository")
+	}
+	t.Cleanup(func() { execCommandOutput = orig })
+
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	// git fails → changesReliable stays false → SetChangedFiles not called
+	cmdCheck([]string{"--context", "branch=main", "--changes-from", "origin/main", path})
+	if *code != -1 {
+		t.Errorf("multi-context+changes-from fail: want no exit, got %d", *code)
+	}
+}
+
+func TestCmdCheck_MultiContext_FormatJSON(t *testing.T) {
+	// --context + non-text format: printContextTable should NOT be called.
+	code := captureExit(t)
+	path := writePipeline(t, minimalPipeline)
+	cmdCheck([]string{"--context", "branch=main", "--format", "json", path})
+	if *code != -1 {
+		t.Errorf("multi-context json: want no exit, got %d", *code)
+	}
+}
+
 // ── isSuppressed ─────────────────────────────────────────────────────────────
 
 func TestIsSuppressed(t *testing.T) {

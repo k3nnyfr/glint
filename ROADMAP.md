@@ -23,7 +23,7 @@ Pass `--branch`, `--tag`, `--source`, or `--var` to `glint check` or `glint grap
 - ~~**Workflow rule strict evaluation**~~ — ✓ shipped v0.2.14; unparseable `if:` skips the rule instead of matching everything; prevents wrong variables being injected
 - ~~**Single `=` operator**~~ — ✓ shipped v0.2.14; bare `=` accepted as alias for `==` in `rules:if:` expressions
 - ~~**`rules:changes:` evaluation**~~ — ✓ shipped v0.2.21; `--changes PATH` and `--changes-from REF` flags; doublestar glob matching (`*` within segment, `**` across segments); permissive when no file list provided
-- **Multi-context simulation** — run multiple contexts in one invocation and print a comparison table (`--context branch=main --context branch=develop --context tag=v1.0.0`)
+- ~~**Multi-context simulation**~~ — ✓ shipped v0.2.22; `--context KEY=VALUE[,...]`; repeatable; prints a comparison table of `active`/`manual`/`skipped`/`blocked` per job across all contexts
 - **Context-scoped linting** — skip `needs:`/`dependencies:` cross-checks for jobs that are statically unreachable in the given context
 
 ---

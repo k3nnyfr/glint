@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.22] - 2026-06-25
+
+### Added
+
+- **Multi-context simulation** — `glint check` now accepts a repeatable `--context KEY=VALUE[,...]` flag. Each `--context` invocation defines one simulation context; when two or more are given, glint evaluates every pipeline job across all contexts and prints a side-by-side comparison table with `active`, `manual`, `skipped`, or `blocked` (when `workflow:rules:` would prevent the pipeline from starting) per column. Known context keys are `branch`, `tag`, and `source` (case-insensitive); any other `KEY=VALUE` pair is treated as a CI variable override. The `--changes` / `--changes-from` flags work alongside `--context` and the changed-file list is shared across all contexts. Implicit `--branch main --source push` defaults are skipped when `--context` is given.
+
 ## [0.2.21] - 2026-06-21
 
 ### Added

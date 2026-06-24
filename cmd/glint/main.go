@@ -126,6 +126,8 @@ func cmdCheck(args []string) {
 	var changesFiles multiFlag
 	fs.Var(&changesFiles, "changes", "mark a file path as changed for rules:changes: evaluation; repeatable")
 	changesFrom := fs.String("changes-from", "", "git ref to diff against for rules:changes: evaluation (e.g. HEAD~1, origin/main)")
+	var contexts multiFlag
+	fs.Var(&contexts, "context", "simulation context as KEY=VALUE[,...]; repeatable for multi-context comparison table")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Lint a GitLab CI pipeline file.
@@ -190,6 +192,15 @@ Options:
           Run "git diff --name-only <REF>" to determine changed files for
           rules:changes: evaluation. Combined with --changes if both are given.
 
+      --context <KEY=VALUE[,...]>
+          Define a simulation context. Repeatable: each --context flag adds one
+          column to a comparison table showing every job's state across contexts.
+          Known keys: branch, tag, source. Any other KEY=VALUE is treated as a
+          CI variable override. Examples:
+            --context branch=main --context branch=develop
+            --context tag=v1.0.0
+            --context branch=main,DEPLOY_ENV=prod
+
       --list-vars
           Print all pipeline-level variables collected from the root file and
           every included file (sorted KEY=VALUE) to stderr, then continue
@@ -219,12 +230,14 @@ Examples:
   glint check --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
   glint check --changes src/main.go --changes Dockerfile .gitlab-ci.yml
   glint check --changes-from origin/main .gitlab-ci.yml
+  glint check --context branch=main --context branch=develop .gitlab-ci.yml
+  glint check --context branch=main --context tag=v1.0.0 --context source=schedule .gitlab-ci.yml
 `)
 	}
 	_ = fs.Parse(args)
 
-	// Apply implicit defaults when no context flag is given at all.
-	if *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
+	// Apply implicit defaults only in single-context mode when no flags are given.
+	if len(contexts) == 0 && *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
 		*branch = "main"
 		*source = "push"
 	}
@@ -308,40 +321,62 @@ Examples:
 		fmt.Fprintf(os.Stderr, "%s: [warning] job %q extends unknown job %q; extends chain skipped\n", path, w.Job, w.Base)
 	}
 
-	ctx := cicontext.New(*branch, *tag, *source, vars)
-	// Wire up rules:changes: evaluation when file-change data is provided.
+	// Compute changed files once; shared across single and multi-context modes.
+	var allChanged []string
+	var changesReliable bool
 	if *changesFrom != "" || len(changesFiles) > 0 {
-		var allChanged []string
-		reliable := len(changesFiles) > 0
+		changesReliable = len(changesFiles) > 0
 		if *changesFrom != "" {
 			files, err := gitDiffFiles(*changesFrom)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s: [warning] --changes-from: %v\n", path, err)
 			} else {
 				allChanged = append(allChanged, files...)
-				reliable = true
+				changesReliable = true
 			}
 		}
 		allChanged = append(allChanged, changesFiles...)
-		if reliable {
-			if allChanged == nil {
-				allChanged = []string{}
+		if changesReliable && allChanged == nil {
+			allChanged = []string{}
+		}
+	}
+
+	if len(contexts) > 0 {
+		// Multi-context mode: build one context per --context flag, then print a comparison table.
+		ctxList := make([]*cicontext.Context, 0, len(contexts))
+		runs := make([]bool, 0, len(contexts))
+		for _, spec := range contexts {
+			cb, ct, cs, cv := parseContextSpec(spec)
+			c := cicontext.New(cb, ct, cs, cv)
+			if changesReliable {
+				c.SetChangedFiles(allChanged)
 			}
+			ran := enrichContext(c, p)
+			ctxList = append(ctxList, c)
+			runs = append(runs, ran)
+		}
+		if *format == "text" {
+			printContextTable(p, ctxList, contexts, runs)
+		}
+	} else {
+		// Single-context mode: existing flow.
+		ctx := cicontext.New(*branch, *tag, *source, vars)
+		if changesReliable {
 			ctx.SetChangedFiles(allChanged)
 		}
-	}
-	if !ctx.IsEmpty() {
-		if !enrichContext(ctx, p) {
-			fmt.Fprintf(os.Stderr, "%s: [warning] workflow:rules: pipeline would not start for this context\n", path)
+		if !ctx.IsEmpty() {
+			if !enrichContext(ctx, p) {
+				fmt.Fprintf(os.Stderr, "%s: [warning] workflow:rules: pipeline would not start for this context\n", path)
+			}
 		}
-	}
-	if *listVars {
-		printVars(p, ctx)
-	}
-	// Context summary only makes sense in plain-text output; suppress it in
-	// structured formats so stdout contains only the machine-readable payload.
-	if !ctx.IsEmpty() && *format == "text" {
-		printContext(p, ctx)
+		if *listVars {
+			printVars(p, ctx)
+		}
+		// Context summary only makes sense in plain-text output; suppress it in
+		// structured formats so stdout contains only the machine-readable payload.
+		if !ctx.IsEmpty() && *format == "text" {
+			printContext(p, ctx)
+		}
 	}
 
 	findings := linter.Lint(p)
@@ -678,4 +713,137 @@ func printJobGroup(label string, jobs []string) {
 		return
 	}
 	fmt.Printf("%s (%d): %s\n", label, len(jobs), strings.Join(jobs, ", "))
+}
+
+// parseContextSpec parses "branch=main,DEPLOY_ENV=prod" into its parts.
+// Known keys (branch, tag, source) are extracted; everything else goes into extraVars.
+func parseContextSpec(spec string) (branch, tag, source string, extraVars []string) {
+	for _, kv := range strings.Split(spec, ",") {
+		kv = strings.TrimSpace(kv)
+		if kv == "" {
+			continue
+		}
+		parts := strings.SplitN(kv, "=", 2)
+		key := parts[0]
+		val := ""
+		if len(parts) == 2 {
+			val = parts[1]
+		}
+		switch strings.ToLower(key) {
+		case "branch":
+			branch = val
+		case "tag":
+			tag = val
+		case "source":
+			source = val
+		default:
+			extraVars = append(extraVars, kv)
+		}
+	}
+	return
+}
+
+// sortedJobNames returns non-hidden job names ordered by stage position, then alphabetically.
+func sortedJobNames(p *model.Pipeline) []string {
+	stageIdx := make(map[string]int, len(p.Stages))
+	for i, s := range p.Stages {
+		stageIdx[s] = i
+	}
+	type entry struct {
+		name  string
+		stage int
+	}
+	entries := make([]entry, 0, len(p.Jobs))
+	for name, job := range p.Jobs {
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		idx, ok := stageIdx[job.Stage]
+		if !ok {
+			idx = len(p.Stages)
+		}
+		entries = append(entries, entry{name: name, stage: idx})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].stage != entries[j].stage {
+			return entries[i].stage < entries[j].stage
+		}
+		return entries[i].name < entries[j].name
+	})
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.name
+	}
+	return names
+}
+
+// printContextTable prints a side-by-side comparison of job states across contexts.
+func printContextTable(p *model.Pipeline, ctxs []*cicontext.Context, labels []string, runs []bool) {
+	jobs := sortedJobNames(p)
+	if len(jobs) == 0 {
+		return
+	}
+
+	// Evaluate all jobs for all contexts up front so we can compute column widths.
+	states := make([][]string, len(jobs))
+	for r, name := range jobs {
+		states[r] = make([]string, len(ctxs))
+		for c, ctx := range ctxs {
+			if !runs[c] {
+				states[r][c] = "blocked"
+			} else {
+				switch cicontext.EvalJob(p.Jobs[name], ctx) {
+				case cicontext.JobActive:
+					states[r][c] = "active"
+				case cicontext.JobManual:
+					states[r][c] = "manual"
+				default:
+					states[r][c] = "skipped"
+				}
+			}
+		}
+	}
+
+	// Compute column widths.
+	jobCol := len("JOB")
+	for _, name := range jobs {
+		if len(name) > jobCol {
+			jobCol = len(name)
+		}
+	}
+	ctxCols := make([]int, len(labels))
+	for i, lbl := range labels {
+		ctxCols[i] = len(lbl)
+	}
+	for r := range jobs {
+		for c, s := range states[r] {
+			if len(s) > ctxCols[c] {
+				ctxCols[c] = len(s)
+			}
+		}
+	}
+
+	// Print header.
+	fmt.Println("Context comparison:")
+	fmt.Println()
+	fmt.Printf("%-*s", jobCol, "JOB")
+	for i, lbl := range labels {
+		fmt.Printf("  %-*s", ctxCols[i], lbl)
+	}
+	fmt.Println()
+	fmt.Print(strings.Repeat("-", jobCol))
+	for _, w := range ctxCols {
+		fmt.Print("  " + strings.Repeat("-", w))
+	}
+	fmt.Println()
+
+	// Print rows.
+	for r, name := range jobs {
+		fmt.Printf("%-*s", jobCol, name)
+		for c, s := range states[r] {
+			fmt.Printf("  %-*s", ctxCols[c], s)
+		}
+		fmt.Println()
+	}
+	fmt.Println()
 }
