@@ -1,0 +1,66 @@
+# .glint.yml — glint project configuration
+#
+# Place this file anywhere between your .gitlab-ci.yml and the repository root.
+# glint searches upward from the pipeline file and stops at the first .git
+# boundary, so the repo root is the typical location.
+#
+# All keys are optional. Omit or comment out anything you don't need.
+
+# ── Rule suppression ──────────────────────────────────────────────────────────
+#
+# Suppress rules globally for this project. Suppressed rules produce no output
+# and do not affect the exit code.
+#
+ignore:
+  - GL007   # only:/except: used (migrating from legacy syntax)
+  - GL032   # rules:if: references undeclared variable (injected at runtime)
+
+# ── Severity overrides ────────────────────────────────────────────────────────
+#
+# Override the default severity of any rule.
+# Valid values: error | warning | ignore
+# "ignore" is equivalent to listing the rule in `ignore:` above.
+#
+severity:
+  GL004: warning   # demote "unknown stage" to warning during a stage migration
+  GL035: error     # promote absolute-path warning to a hard error
+  GL007: ignore    # equivalent to adding GL007 to ignore:
+
+# ── Extra stage names ─────────────────────────────────────────────────────────
+#
+# Declare stage names that are valid for this project beyond what is listed in
+# the pipeline's own `stages:` block. Jobs referencing these stages will not
+# be flagged by GL004. Useful when stages are defined in a shared parent
+# template that glint cannot reach.
+#
+stages:
+  - quality
+  - security
+  - compliance
+
+# ── GitLab token ──────────────────────────────────────────────────────────────
+#
+# Default personal access token (read_api scope) used to fetch `include:
+# project:` templates. This is the lowest-priority token source; it is
+# overridden by the --token flag and the GITLAB_TOKEN / CI_JOB_TOKEN /
+# GITLAB_PRIVATE_TOKEN environment variables.
+#
+# Avoid committing real tokens — use environment variables instead.
+#
+# token: glpat-xxxxxxxxxxxxxxxxxxxx
+
+# ── GitLab instance URL ───────────────────────────────────────────────────────
+#
+# Default GitLab instance URL, used when fetching project: and component:
+# includes. Overridden by --gitlab-url, CI_SERVER_URL, and GITLAB_URL.
+#
+# url: https://gitlab.example.com
+
+# ── Include cache directory ───────────────────────────────────────────────────
+#
+# Default directory for caching fetched remote includes (project: and
+# component:). The directory is created on first use. Overridden by
+# --cache-dir. When --offline is given without --cache-dir, glint defaults
+# to ~/.cache/glint regardless of this setting.
+#
+# cache_dir: ~/.cache/glint
