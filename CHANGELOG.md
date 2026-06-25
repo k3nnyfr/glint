@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.26] - 2026-06-25
+
+### Changed
+
+- **Same-stage job ordering** — when jobs within the same declared GitLab stage have `needs:` relationships between each other, the pipeline graph now splits that stage into topological sub-columns: jobs with no same-stage dependencies occupy the leftmost sub-column; jobs that depend on them are placed one sub-column to the right. Sub-columns use a narrower 20 px gap (vs. the 50 px gap between stages), and the stage header spans all sub-columns. Stages with no intra-stage `needs:` are unaffected.
+
+- **Graph links rendered behind job chips** — SVG connector lines (Bézier curves in DAG mode, bus-bar stubs in classic mode) are now drawn before the job chip rectangles, so connector lines pass behind chips rather than on top of them.
+
 ## [0.2.25] - 2026-06-25
 
 ### Added

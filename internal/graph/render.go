@@ -16,20 +16,123 @@ import (
 
 // Layout constants (pixels) – tuned to resemble GitLab's full pipeline graph view.
 const (
-	chipW    = 178 // job chip width
-	chipH    = 34  // job chip height
-	chipGap  = 6   // vertical gap between chips in a column
-	iconCX   = 14  // status circle: x offset from chip left edge to circle centre
-	iconR    = 7   // status circle radius (14 px diameter)
-	textLeft = 27  // job name text: x offset from chip left edge
-	labelH   = 30  // stage-name label area height (text + bottom gap)
-	topPad   = 40  // outer top padding
-	sidePad  = 40  // outer left / right padding
-	stageGap = 50  // horizontal gap between stage columns (connector space)
-	botPad   = 48  // outer bottom padding (legend lives here)
+	chipW       = 178 // job chip width
+	chipH       = 34  // job chip height
+	chipGap     = 6   // vertical gap between chips in a column
+	iconCX      = 14  // status circle: x offset from chip left edge to centre
+	iconR       = 7   // status circle radius (14 px diameter)
+	textLeft    = 27  // job name text: x offset from chip left edge
+	labelH      = 30  // stage-name label area height (text + bottom gap)
+	topPad      = 40  // outer top padding
+	sidePad     = 40  // outer left / right padding
+	stageGap    = 50  // horizontal gap between stage columns (connector space)
+	subStageGap = 20  // horizontal gap between sub-columns within the same stage
+	botPad      = 48  // outer bottom padding (legend lives here)
 )
 
 type svgPt struct{ x, y int }
+
+// column represents one vertical stack of job chips in the SVG.
+// A declared GitLab stage maps to one column unless jobs within it have
+// same-stage needs:, in which case it splits into topological sub-columns.
+type column struct {
+	stage string   // declared GitLab stage name
+	jobs  []string // job names in this column, topologically ordered
+}
+
+// computeColumns assigns jobs to SVG columns.
+// When jobs within the same declared stage have needs: relationships between
+// each other, the stage is split into topological sub-columns so that
+// depended-upon jobs appear to the left of the jobs that depend on them.
+func computeColumns(stages []string, byStage map[string][]string, jobs map[string]model.Job) []column {
+	var cols []column
+	for _, stage := range stages {
+		stageJobs := byStage[stage]
+		sort.Strings(stageJobs)
+		if len(stageJobs) == 0 {
+			continue
+		}
+
+		// Index same-stage membership.
+		stageSet := make(map[string]bool, len(stageJobs))
+		for _, j := range stageJobs {
+			stageSet[j] = true
+		}
+
+		// Check whether any job has a same-stage need.
+		hasIntraNeeds := false
+		outer:
+		for _, j := range stageJobs {
+			for _, need := range jobs[j].Needs {
+				if dep := needsJobName(need); dep != "" && stageSet[dep] {
+					hasIntraNeeds = true
+					break outer
+				}
+			}
+		}
+
+		if !hasIntraNeeds {
+			cols = append(cols, column{stage: stage, jobs: stageJobs})
+			continue
+		}
+
+		// Compute topological depth within the stage.
+		depth := make(map[string]int, len(stageJobs))
+		for _, j := range stageJobs {
+			depth[j] = -1
+		}
+		inProgress := make(map[string]bool, len(stageJobs))
+		var computeDepth func(j string) int
+		computeDepth = func(j string) int {
+			if depth[j] >= 0 {
+				return depth[j]
+			}
+			if inProgress[j] {
+				return 0 // cycle guard (cycles already rejected by GL029)
+			}
+			inProgress[j] = true
+			maxDep := -1
+			for _, need := range jobs[j].Needs {
+				dep := needsJobName(need)
+				if dep == "" || !stageSet[dep] {
+					continue
+				}
+				d := computeDepth(dep)
+				if d > maxDep {
+					maxDep = d
+				}
+			}
+			depth[j] = maxDep + 1
+			return depth[j]
+		}
+		for _, j := range stageJobs {
+			if depth[j] < 0 {
+				computeDepth(j)
+			}
+		}
+
+		// One sub-column per topological depth level.
+		maxDepth := 0
+		for _, j := range stageJobs {
+			if depth[j] > maxDepth {
+				maxDepth = depth[j]
+			}
+		}
+		for l := 0; l <= maxDepth; l++ {
+			var levelJobs []string
+			for _, j := range stageJobs {
+				if depth[j] == l {
+					levelJobs = append(levelJobs, j)
+				}
+			}
+			if len(levelJobs) > 0 {
+				sort.Strings(levelJobs)
+				cols = append(cols, column{stage: stage, jobs: levelJobs})
+			}
+		}
+	}
+	return cols
+}
 
 // RenderPipeline writes a PNG (or SVG fallback) file with a GitLab CI-style
 // pipeline layout and returns the path to the generated file.
@@ -148,28 +251,42 @@ func pipelineSVG(p *model.Pipeline, ctx *cicontext.Context) string {
 		}
 	}
 
-	// Compute per-stage column heights and job anchor points for connectors.
+	// ── Column layout ─────────────────────────────────────────────────────────
+	// Split stages into sub-columns when intra-stage needs exist.
+	cols := computeColumns(stages, byStage, p.Jobs)
+
+	// X position of each column's left edge.
+	colX := make([]int, len(cols))
+	if len(cols) > 0 {
+		colX[0] = sidePad
+		for i := 1; i < len(cols); i++ {
+			gap := stageGap
+			if cols[i].stage == cols[i-1].stage {
+				gap = subStageGap
+			}
+			colX[i] = colX[i-1] + chipW + gap
+		}
+	}
+
+	// Compute SVG dimensions and per-job connector anchor points.
 	maxColH := 0
 	rightMid := make(map[string]svgPt)
 	leftMid := make(map[string]svgPt)
 
-	for i, stage := range stages {
-		jobs := byStage[stage]
-		sort.Strings(jobs)
-		n := len(jobs)
+	for ci, col := range cols {
+		n := len(col.jobs)
 		h := n*chipH + max(0, n-1)*chipGap
 		if h > maxColH {
 			maxColH = h
 		}
-		cx := sidePad + i*(chipW+stageGap)
-		for j, name := range jobs {
+		for j, name := range col.jobs {
 			chy := topPad + labelH + j*(chipH+chipGap)
-			rightMid[name] = svgPt{cx + chipW, chy + chipH/2}
-			leftMid[name] = svgPt{cx, chy + chipH/2}
+			rightMid[name] = svgPt{colX[ci] + chipW, chy + chipH/2}
+			leftMid[name] = svgPt{colX[ci], chy + chipH/2}
 		}
 	}
 
-	svgW := sidePad*2 + len(stages)*chipW + max(0, len(stages)-1)*stageGap
+	svgW := colX[len(cols)-1] + chipW + sidePad
 	svgH := topPad + labelH + maxColH + botPad
 
 	// DAG mode: any visible job with a needs: list triggers job-to-job arrows.
@@ -199,30 +316,117 @@ func pipelineSVG(p *model.Pipeline, ctx *cicontext.Context) string {
 	// White page background.
 	wf(`  <rect width="%d" height="%d" fill="#ffffff"/>`, svgW, svgH)
 
-	// ── Stage columns ─────────────────────────────────────────────────────────
-	for i, stage := range stages {
-		cx := sidePad + i*(chipW+stageGap)
-		jobs := byStage[stage]
-		sort.Strings(jobs)
+	// ── Stage headers ─────────────────────────────────────────────────────────
+	// Each declared stage may span multiple sub-columns; draw one header per stage.
+	drawnHeader := make(map[string]bool)
+	for ci, col := range cols {
+		if drawnHeader[col.stage] {
+			continue
+		}
+		// Span all sub-columns that belong to this stage.
+		x1 := colX[ci]
+		x2 := colX[ci] + chipW
+		for j := ci + 1; j < len(cols) && cols[j].stage == col.stage; j++ {
+			x2 = colX[j] + chipW
+		}
+		centerX := (x1 + x2) / 2
 
-		// Stage name – small, gray, uppercase, centered above the chip stack.
+		// Stage name – small, gray, uppercase.
 		wf(`  <text x="%d" y="%d" text-anchor="middle" `+
 			`font-family="'GitLab Sans','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif" `+
 			`font-size="11" font-weight="600" letter-spacing="0.8" fill="#868686">%s</text>`,
-			cx+chipW/2, topPad+13, svgEsc(strings.ToUpper(stage)))
+			centerX, topPad+13, svgEsc(strings.ToUpper(col.stage)))
 
-		// Subtle separator line below stage name.
+		// Separator line spanning all sub-columns.
 		wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#eaeaea" stroke-width="1"/>`,
-			cx, topPad+21, cx+chipW, topPad+21)
+			x1, topPad+21, x2, topPad+21)
 
-		// Job chips – each wrapped in a <g> with tooltip metadata.
-		for j, name := range jobs {
+		drawnHeader[col.stage] = true
+	}
+
+	// ── Connectors (drawn before chips so they appear behind job blocks) ───────
+	const connStroke = "#dbdbdb"
+
+	if dagMode {
+		// Job-to-job bezier curves from needs:.
+		for _, name := range visible {
+			for _, need := range p.Jobs[name].Needs {
+				dep := needsJobName(need)
+				if dep == "" {
+					continue
+				}
+				src, okS := rightMid[dep]
+				dst, okD := leftMid[name]
+				if !okS || !okD {
+					continue
+				}
+				cpX := (src.x + dst.x) / 2
+				wf(`  <path d="M%d,%d C%d,%d %d,%d %d,%d" stroke="%s" stroke-width="2" fill="none"/>`,
+					src.x, src.y, cpX, src.y, cpX, dst.y, dst.x-7, dst.y, connStroke)
+				// Small right-pointing triangle arrowhead.
+				wf(`  <polygon points="%d,%d %d,%d %d,%d" fill="%s"/>`,
+					dst.x-7, dst.y-4, dst.x, dst.y, dst.x-7, dst.y+4, connStroke)
+			}
+		}
+	} else {
+		// Classic: bus-bar connectors between adjacent stage columns.
+		// Every job in stage[i] fans to a vertical bus at the midpoint gap,
+		// then fans out to every job in stage[i+1].
+		for ci := 0; ci < len(cols)-1; ci++ {
+			x1 := colX[ci] + chipW    // right edge of current column
+			x2 := colX[ci+1]          // left edge of next column
+			midX := (x1 + x2) / 2
+
+			srcJobs := cols[ci].jobs
+			dstJobs := cols[ci+1].jobs
+
+			// Collect all Y midpoints to span the vertical bus bar.
+			var allYs []int
+			srcY := make([]int, len(srcJobs))
+			dstY := make([]int, len(dstJobs))
+			for j, name := range srcJobs {
+				srcY[j] = rightMid[name].y
+				allYs = append(allYs, srcY[j])
+			}
+			for j, name := range dstJobs {
+				dstY[j] = leftMid[name].y
+				allYs = append(allYs, dstY[j])
+			}
+			sort.Ints(allYs)
+			busMinY, busMaxY := allYs[0], allYs[len(allYs)-1]
+
+			// Vertical bus bar at midX (only when there are multiple Y levels).
+			if busMinY < busMaxY {
+				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					midX, busMinY, midX, busMaxY, connStroke)
+			}
+
+			// Horizontal stubs from each source job to the bus.
+			for _, y := range srcY {
+				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					x1, y, midX, y, connStroke)
+			}
+
+			// Horizontal stubs from bus to each destination job, with arrowhead.
+			for _, y := range dstY {
+				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
+					midX, y, x2-7, y, connStroke)
+				wf(`  <polygon points="%d,%d %d,%d %d,%d" fill="%s"/>`,
+					x2-7, y-4, x2, y, x2-7, y+4, connStroke)
+			}
+		}
+	}
+
+	// ── Job chips (drawn after connectors so they appear on top) ─────────────
+	for ci, col := range cols {
+		for j, name := range col.jobs {
 			job := p.Jobs[name]
 			chy := topPad + labelH + j*(chipH+chipGap)
 			isSkipped := skippedJobs[name]
+			cx := colX[ci]
 
 			// Build <desc> content: shown in the HTML sidebar and SVG viewer tooltips.
-			desc := "stage: " + stage
+			desc := "stage: " + col.stage
 			if job.When != "" {
 				desc += "\nwhen: " + job.When
 			}
@@ -282,82 +486,6 @@ func pipelineSVG(p *model.Pipeline, ctx *cicontext.Context) string {
 				cx+textLeft, chy+chipH/2, textColor, svgEsc(svgTrunc(name, 20)))
 
 			wf(`  </g>`)
-		}
-	}
-
-	// ── Connectors ────────────────────────────────────────────────────────────
-	const connStroke = "#dbdbdb"
-
-	if dagMode {
-		// Job-to-job bezier curves from needs:.
-		for _, name := range visible {
-			for _, need := range p.Jobs[name].Needs {
-				dep := needsJobName(need)
-				if dep == "" {
-					continue
-				}
-				src, okS := rightMid[dep]
-				dst, okD := leftMid[name]
-				if !okS || !okD {
-					continue
-				}
-				cpX := (src.x + dst.x) / 2
-				wf(`  <path d="M%d,%d C%d,%d %d,%d %d,%d" stroke="%s" stroke-width="2" fill="none"/>`,
-					src.x, src.y, cpX, src.y, cpX, dst.y, dst.x-7, dst.y, connStroke)
-				// Small right-pointing triangle arrowhead.
-				wf(`  <polygon points="%d,%d %d,%d %d,%d" fill="%s"/>`,
-					dst.x-7, dst.y-4, dst.x, dst.y, dst.x-7, dst.y+4, connStroke)
-			}
-		}
-	} else {
-		// Classic: bus-bar connectors – every job in stage[i] fans to a vertical
-		// bus at the midpoint column gap, then fans out to every job in stage[i+1].
-		// This gives each job pair its own visual connection instead of a single
-		// center-to-center line that misses jobs at the top and bottom of columns.
-		for i := 0; i < len(stages)-1; i++ {
-			x1 := sidePad + i*(chipW+stageGap) + chipW // right edge of left column
-			x2 := sidePad + (i+1)*(chipW+stageGap)    // left edge of right column
-			midX := (x1 + x2) / 2
-
-			srcJobs := byStage[stages[i]]
-			sort.Strings(srcJobs)
-			dstJobs := byStage[stages[i+1]]
-			sort.Strings(dstJobs)
-
-			// Collect all Y midpoints to span the vertical bus bar.
-			var allYs []int
-			srcY := make([]int, len(srcJobs))
-			dstY := make([]int, len(dstJobs))
-			for j, name := range srcJobs {
-				srcY[j] = rightMid[name].y
-				allYs = append(allYs, srcY[j])
-			}
-			for j, name := range dstJobs {
-				dstY[j] = leftMid[name].y
-				allYs = append(allYs, dstY[j])
-			}
-			sort.Ints(allYs)
-			busMinY, busMaxY := allYs[0], allYs[len(allYs)-1]
-
-			// Vertical bus bar at midX (only drawn when there are multiple Y levels).
-			if busMinY < busMaxY {
-				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
-					midX, busMinY, midX, busMaxY, connStroke)
-			}
-
-			// Horizontal stubs from each source job to the bus.
-			for _, y := range srcY {
-				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
-					x1, y, midX, y, connStroke)
-			}
-
-			// Horizontal stubs from bus to each destination job, with arrowhead.
-			for _, y := range dstY {
-				wf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>`,
-					midX, y, x2-7, y, connStroke)
-				wf(`  <polygon points="%d,%d %d,%d %d,%d" fill="%s"/>`,
-					x2-7, y-4, x2, y, x2-7, y+4, connStroke)
-			}
 		}
 	}
 

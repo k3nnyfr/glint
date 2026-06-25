@@ -77,6 +77,8 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - ~~**Blocked / skipped state colouring**~~ — ✓ shipped v0.2.25; `glint graph pipeline` accepts context flags (`--branch`, `--tag`, etc.); jobs evaluated as skipped are greyed out (`#868686`) with dimmed text and no icon
 - ~~**Interactive HTML output**~~ — ✓ shipped v0.2.25; `glint graph pipeline --format html` writes a self-contained `.html` file with mouse pan/zoom and a click-to-open job-detail sidebar; no external dependencies
 - ~~**Mermaid pipeline output**~~ — ✓ shipped v0.2.25; `glint graph pipeline --format mermaid` prints a Mermaid flowchart to stdout (paste into mermaid.live)
+- ~~**Same-stage job ordering**~~ — ✓ shipped v0.2.26; jobs within a stage that have `needs:` between each other are placed in topological sub-columns (left-to-right by depth); stage header spans all sub-columns
+- ~~**Graph links rendered behind job chips**~~ — ✓ shipped v0.2.26; SVG connectors (Bézier curves and bus-bar stubs) are drawn before job chips so lines pass behind rectangles
 
 ---
 
@@ -113,7 +115,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## Reliability and developer experience
 
-- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20; GL044 added v0.2.24; graph improvements shipped v0.2.25
+- ~~**Structured rule IDs**~~ — ✓ shipped post-v0.2.0; GL001–GL031 assigned; GL032 added v0.2.11; GL033 added v0.2.15; GL034–GL041 added v0.2.16; output formats (--format json/sarif/junit/github) added v0.2.18; GL042–GL043 added v0.2.20; GL044 added v0.2.24; graph improvements shipped v0.2.25–v0.2.26
 - ~~**`glint explain <rule-id>`**~~ — ✓ shipped v0.2.20; prints rule description, rationale, bad-YAML example, and fix; `glint explain` (no arg) lists all rules
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`

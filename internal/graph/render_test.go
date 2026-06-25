@@ -520,6 +520,138 @@ func TestRenderHTML_WriteFileFails(t *testing.T) {
 	}
 }
 
+// ── computeColumns ────────────────────────────────────────────────────────────
+
+func TestComputeColumns_NoIntraNeeds(t *testing.T) {
+	// No intra-stage needs → one column per stage.
+	stages := []string{"build", "test"}
+	byStage := map[string][]string{
+		"build": {"build-a", "build-b"},
+		"test":  {"test-a"},
+	}
+	jobs := map[string]model.Job{
+		"build-a": {Name: "build-a", Stage: "build"},
+		"build-b": {Name: "build-b", Stage: "build"},
+		"test-a":  {Name: "test-a", Stage: "test"},
+	}
+	cols := computeColumns(stages, byStage, jobs)
+	if len(cols) != 2 {
+		t.Fatalf("expected 2 columns (one per stage), got %d", len(cols))
+	}
+	if cols[0].stage != "build" || len(cols[0].jobs) != 2 {
+		t.Errorf("col[0]: got stage=%q jobs=%v", cols[0].stage, cols[0].jobs)
+	}
+	if cols[1].stage != "test" || len(cols[1].jobs) != 1 {
+		t.Errorf("col[1]: got stage=%q jobs=%v", cols[1].stage, cols[1].jobs)
+	}
+}
+
+func TestComputeColumns_IntraNeeds(t *testing.T) {
+	// job-b depends on job-a in the same stage → split into 2 sub-columns.
+	stages := []string{"build"}
+	byStage := map[string][]string{
+		"build": {"job-a", "job-b"},
+	}
+	jobs := map[string]model.Job{
+		"job-a": {Name: "job-a", Stage: "build"},
+		"job-b": {Name: "job-b", Stage: "build", Needs: []any{"job-a"}},
+	}
+	cols := computeColumns(stages, byStage, jobs)
+	if len(cols) != 2 {
+		t.Fatalf("expected 2 sub-columns, got %d", len(cols))
+	}
+	// Both belong to the same stage.
+	if cols[0].stage != "build" || cols[1].stage != "build" {
+		t.Error("both sub-columns should be in stage 'build'")
+	}
+	// job-a has no same-stage deps → depth 0 → first sub-column.
+	if len(cols[0].jobs) != 1 || cols[0].jobs[0] != "job-a" {
+		t.Errorf("col[0] should contain job-a, got %v", cols[0].jobs)
+	}
+	// job-b depends on job-a → depth 1 → second sub-column.
+	if len(cols[1].jobs) != 1 || cols[1].jobs[0] != "job-b" {
+		t.Errorf("col[1] should contain job-b, got %v", cols[1].jobs)
+	}
+}
+
+func TestComputeColumns_EmptyStageSkipped(t *testing.T) {
+	// Stages with no jobs are silently skipped.
+	stages := []string{"build", "empty", "test"}
+	byStage := map[string][]string{
+		"build": {"j1"},
+		"test":  {"j2"},
+	}
+	jobs := map[string]model.Job{
+		"j1": {Name: "j1", Stage: "build"},
+		"j2": {Name: "j2", Stage: "test"},
+	}
+	cols := computeColumns(stages, byStage, jobs)
+	if len(cols) != 2 {
+		t.Fatalf("expected 2 columns (empty stage skipped), got %d", len(cols))
+	}
+}
+
+func TestComputeColumns_CrossStageNeedIgnored(t *testing.T) {
+	// job-b has needs: for both job-a (same stage) and prev-job (different stage).
+	// The cross-stage need must be ignored when computing topological depth.
+	stages := []string{"build"}
+	byStage := map[string][]string{
+		"build": {"job-a", "job-b"},
+	}
+	jobs := map[string]model.Job{
+		"job-a": {Name: "job-a", Stage: "build"},
+		"job-b": {Name: "job-b", Stage: "build", Needs: []any{"job-a", "prev-job"}},
+		"prev-job": {Name: "prev-job", Stage: "prepare"},
+	}
+	cols := computeColumns(stages, byStage, jobs)
+	// Still split into 2 sub-columns; the cross-stage need is ignored.
+	if len(cols) != 2 {
+		t.Fatalf("expected 2 sub-columns, got %d", len(cols))
+	}
+	if cols[0].jobs[0] != "job-a" {
+		t.Errorf("expected job-a in first sub-column, got %v", cols[0].jobs)
+	}
+	if cols[1].jobs[0] != "job-b" {
+		t.Errorf("expected job-b in second sub-column, got %v", cols[1].jobs)
+	}
+}
+
+func TestComputeColumns_CycleGuard(t *testing.T) {
+	// Intra-stage cycle must not hang (cycle guard returns depth 0).
+	stages := []string{"build"}
+	byStage := map[string][]string{
+		"build": {"a", "b"},
+	}
+	jobs := map[string]model.Job{
+		"a": {Name: "a", Stage: "build", Needs: []any{"b"}},
+		"b": {Name: "b", Stage: "build", Needs: []any{"a"}},
+	}
+	cols := computeColumns(stages, byStage, jobs)
+	// Should return without hanging; exact column count is implementation-defined.
+	if len(cols) == 0 {
+		t.Error("expected at least one column")
+	}
+}
+
+func TestPipelineSVG_IntraStageDAG(t *testing.T) {
+	// job-b depends on job-a in the same stage → SVG should render both,
+	// placed as sub-columns (sub-stage gap between them).
+	p := &model.Pipeline{
+		Stages: []string{"build"},
+		Jobs: map[string]model.Job{
+			"job-a": {Name: "job-a", Stage: "build"},
+			"job-b": {Name: "job-b", Stage: "build", Needs: []any{"job-a"}},
+		},
+	}
+	svg := pipelineSVG(p, nil)
+	if !strings.Contains(svg, "job-a") { t.Error("expected job-a in SVG") }
+	if !strings.Contains(svg, "job-b") { t.Error("expected job-b in SVG") }
+	// DAG mode: bezier connectors between the two jobs.
+	if !strings.Contains(svg, "<path") {
+		t.Error("expected bezier <path> connector between intra-stage jobs")
+	}
+}
+
 // ── htmlPage ──────────────────────────────────────────────────────────────────
 
 func TestHtmlPage(t *testing.T) {
