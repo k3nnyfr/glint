@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.29] - 2026-06-26
+
+### Added
+
+- **LSP server** (`glint lsp`) — new `internal/lsp` package and `glint lsp` subcommand that starts a Language Server Protocol server over stdin/stdout using Content-Length–framed JSON-RPC 2.0. Editors (VS Code, Neovim, Emacs, JetBrains, etc.) can connect with any generic LSP client configuration. Supported methods: `initialize`, `initialized`, `shutdown`, `exit`, `textDocument/didOpen`, `textDocument/didChange`, `textDocument/didSave`, `textDocument/didClose`. On every document open or change the server runs the full glint lint pipeline and publishes diagnostics via `textDocument/publishDiagnostics`; each diagnostic carries the rule ID as its `code` field and `"glint"` as `source`. Parse errors are surfaced as an Error diagnostic at the top of the document. Include resolution is best-effort (uses `GITLAB_TOKEN` / `GITLAB_URL` env vars; default cache dir `~/.cache/glint`). CLI flags: `--token`, `--gitlab-url`, `--cache-dir`, `--offline`.
+
 ## [0.2.28] - 2026-06-26
 
 ### Added

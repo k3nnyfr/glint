@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.28-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.29-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -21,6 +21,7 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Multiple output formats** — `--format text` (default, ruff-style), `json`, `sarif` (GitHub Code Scanning / GitLab SAST), `junit`, `github` (PR annotations)
 - **Project config** — `.glint.yml` for rule suppression, severity overrides, token/URL defaults; `# glint: ignore RULE` for per-job inline suppression
 - **Graph visualization** — `glint graph` prints a terminal job tree; `glint graph pipeline` renders a GitLab CI-style SVG/PNG; `--format mermaid` emits a Mermaid flowchart; `--format html` produces a self-contained HTML file with pan/zoom and a job-detail sidebar; context flags grey out skipped jobs
+- **LSP server** — `glint lsp` starts a Language Server Protocol server over stdin/stdout; connect with any LSP client to get inline diagnostics (rule ID as code, error/warning severity) in VS Code, Neovim, Emacs, JetBrains, etc.
 
 See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules table, and [ROADMAP.md](ROADMAP.md) for planned improvements.
 
@@ -52,6 +53,7 @@ Commands:
   check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
   graph    Visualise the pipeline as a job tree or Mermaid graph
   explain  Print description and fix for a lint rule
+  lsp      Start a Language Server Protocol server (stdin/stdout)
 ```
 
 Run `glint <command> --help` for all flags. See [USAGE.md](USAGE.md) for full
