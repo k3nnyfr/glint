@@ -88,6 +88,12 @@ func TestParseBytes_EdgeCases(t *testing.T) {
 	if err == nil {
 		t.Error("wrong field type: expected error from ParseBytes (stage must be string)")
 	}
+
+	// Null/empty YAML key (e.g. bare "?"): job name cannot be empty.
+	_, err = ParseBytes([]byte("?"))
+	if err == nil {
+		t.Error("null key: expected error from ParseBytes (job name cannot be empty)")
+	}
 }
 
 // TestParse_ParseBytesError exercises the Parse → ParseBytes error path (line 18).

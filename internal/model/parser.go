@@ -57,6 +57,9 @@ func ParseBytes(data []byte) (*Pipeline, error) {
 		keyNode := root.Content[i]
 		valNode := root.Content[i+1]
 		key := keyNode.Value
+		if key == "" {
+			return nil, fmt.Errorf("job name cannot be empty (null or missing YAML key)")
+		}
 		if ReservedKeys[key] {
 			continue
 		}

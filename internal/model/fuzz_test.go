@@ -26,6 +26,7 @@ func FuzzParseBytes(f *testing.F) {
 		[]byte("job:\n  stage: test\n  image:\n    name: golang:1.21\n    entrypoint: ['']\n  parallel:\n    matrix:\n      - PLATFORM: [linux, darwin]\n  script: go build\n"),
 		[]byte("default:\n  retry: 2\n  timeout: 1h30m\nvariables:\n  ENV: production\nstages: [build, test, deploy]\n"),
 		[]byte("&anchor\n  script: [echo ok]\njob:\n  <<: *anchor\n  stage: build\n"),
+		[]byte("?"), // null/empty YAML key — must error, not produce an empty-named job
 	}
 	for _, s := range seeds {
 		f.Add(s)
