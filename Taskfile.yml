@@ -176,10 +176,13 @@ tasks:
       - "{{.BINARY}}-{{.TAG}}-linux-amd64"
 
   fuzz:
-    desc: "Run fuzz tests for the YAML parser and sanitizer (set FUZZ_TIME=60s to control duration, default 30s)"
+    desc: "Run all fuzz targets (set FUZZ_TIME=60s to control per-target duration, default 30s)"
     cmds:
       - "{{.GO}} test -fuzz=FuzzParseBytes          -fuzztime=${FUZZ_TIME:-30s} ./internal/model/"
       - "{{.GO}} test -fuzz=FuzzSanitizeYAMLEscapes -fuzztime=${FUZZ_TIME:-30s} ./internal/model/"
+      - "{{.GO}} test -fuzz=FuzzEvalIf              -fuzztime=${FUZZ_TIME:-30s} ./internal/cicontext/"
+      - "{{.GO}} test -fuzz=FuzzExpandVarRefs       -fuzztime=${FUZZ_TIME:-30s} ./internal/cicontext/"
+      - "{{.GO}} test -fuzz=FuzzLint                -fuzztime=${FUZZ_TIME:-30s} ./internal/linter/"
 
   changelog:
     desc: "Regenerate CHANGELOG.md from git history (requires git-cliff — see README)"
