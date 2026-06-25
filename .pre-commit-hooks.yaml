@@ -1,0 +1,11 @@
+- id: glint
+  name: glint — validate GitLab CI pipeline
+  description: >-
+    Lint .gitlab-ci.yml with glint before committing. Catches misconfigured
+    stages, invalid keywords, broken needs: graphs, deprecated patterns, and
+    more — without a GitLab server.
+  entry: glint check
+  language: golang
+  files: '(^|/)\.gitlab-ci\.yml$'
+  pass_filenames: true
+  minimum_pre_commit_version: '3.0.0'

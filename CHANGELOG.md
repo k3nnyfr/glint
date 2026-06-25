@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.28] - 2026-06-26
+
+### Added
+
+- **Pre-commit hook** — `.pre-commit-hooks.yaml` defines a `glint` hook with `language: golang`; pre-commit builds glint from source automatically on first run and re-runs `glint check` on any staged `.gitlab-ci.yml` changes. Reference: `repo: https://git.k3nny.fr/k3nny/glint, rev: v0.2.28`.
+
+- **GitLab CI component** (`templates/check.yml`) — a GitLab CI/CD Catalog–compatible component that downloads the glint Linux binary and runs `glint check` as a pipeline job. Accepts inputs: `stage` (default `validate`), `pipeline_file` (default `.gitlab-ci.yml`), `version` (default `latest`), `allow_failure` (default `false`), and `extra_args`. Can also be used as a plain local or remote include without the Catalog.
+
+- **GitHub Actions composite action** (`action.yml`) — downloads the glint Linux binary into `$RUNNER_TEMP`, adds it to `$GITHUB_PATH`, and runs `glint check`. Inputs: `version`, `file`, `args`. Mirror this repository to GitHub as `k3nny/glint` to reference it as `uses: k3nny/glint@v0.2.28`.
+
 ## [0.2.27] - 2026-06-25
 
 ### Added

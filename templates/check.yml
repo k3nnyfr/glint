@@ -1,0 +1,62 @@
+# glint — GitLab CI/CD Catalog component
+#
+# Validates a pipeline file with glint before the rest of the pipeline runs.
+#
+# Usage (after publishing to a GitLab instance as a Catalog component):
+#
+#   include:
+#     - component: $CI_SERVER_FQDN/k3nny/glint/check@v0.2.28
+#       inputs:
+#         stage: validate   # optional — see inputs below
+#
+# Or as a plain remote include (no Catalog required):
+#
+#   include:
+#     - remote: https://raw.githubusercontent.com/.../templates/check.yml
+#
+# Or copy this file into your repository and use a local include.
+
+spec:
+  inputs:
+    stage:
+      description: "Stage in which to run the glint validation job."
+      default: validate
+    pipeline_file:
+      description: "Path to the pipeline file to validate."
+      default: .gitlab-ci.yml
+    version:
+      description: >-
+        glint release tag to download (e.g. 'v0.2.28'). Use 'latest' to
+        always pull the newest release — not recommended for production
+        pipelines since it may break on a new release.
+      default: latest
+    allow_failure:
+      description: "Set to true to let the job fail without blocking the pipeline."
+      default: false
+    extra_args:
+      description: "Additional arguments passed to 'glint check' (e.g. '--format sarif')."
+      default: ""
+
+---
+glint:check:
+  stage: $[[ inputs.stage ]]
+  image: alpine:3.19
+  variables:
+    GLINT_VERSION: "$[[ inputs.version ]]"
+    GLINT_FILE: "$[[ inputs.pipeline_file ]]"
+    GLINT_ARGS: "$[[ inputs.extra_args ]]"
+  before_script:
+    - apk add --no-cache curl
+    - |
+      if [ "$GLINT_VERSION" = "latest" ]; then
+        GLINT_VERSION=$(curl -sf \
+          "https://git.k3nny.fr/api/v1/repos/k3nny/glint/releases?limit=1" \
+          | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+      fi
+      URL="https://git.k3nny.fr/k3nny/glint/releases/download/${GLINT_VERSION}/glint-${GLINT_VERSION}-linux-amd64"
+      curl -sfL "$URL" -o /usr/local/bin/glint
+      chmod +x /usr/local/bin/glint
+      glint --version
+  script:
+    - glint check $GLINT_ARGS "$GLINT_FILE"
+  allow_failure: $[[ inputs.allow_failure ]]

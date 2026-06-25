@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.27-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.28-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -32,7 +32,7 @@ See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules
 ## Installation
 
 ```bash
-git clone https://git.k3nny.fr/glint
+git clone https://git.k3nny.fr/k3nny/glint
 cd glint
 go build -o glint ./cmd/glint/...
 ```
@@ -57,6 +57,54 @@ Commands:
 Run `glint <command> --help` for all flags. See [USAGE.md](USAGE.md) for full
 examples covering output formats, context simulation, remote includes, cache,
 graph modes, and project configuration.
+
+## Integrations
+
+### Pre-commit hook
+
+Add to `.pre-commit-config.yaml` in your repository to run glint automatically whenever `.gitlab-ci.yml` changes:
+
+```yaml
+repos:
+  - repo: https://git.k3nny.fr/k3nny/glint
+    rev: v0.2.28
+    hooks:
+      - id: glint
+```
+
+Requires [pre-commit](https://pre-commit.com) and Go 1.21+. On first run, pre-commit builds glint from source automatically.
+
+### GitLab CI component
+
+Copy [`templates/check.yml`](templates/check.yml) into your repository and include it as a local file, or publish this repository to a GitLab CI/CD Catalog and reference it as a component:
+
+```yaml
+# As a local include (copy templates/check.yml to your repo first):
+include:
+  - local: .gitlab/glint-check.yml
+
+# As a Catalog component (after publishing to a GitLab instance):
+include:
+  - component: $CI_SERVER_FQDN/k3nny/glint/check@v0.2.28
+    inputs:
+      stage: validate          # optional, default: validate
+      allow_failure: true      # optional, default: false
+```
+
+The component downloads the glint Linux binary, runs `glint check`, and respects all inputs defined in the `spec:` block.
+
+### GitHub Actions
+
+Copy [`action.yml`](action.yml) from this repository, or mirror this repo to GitHub as `k3nny/glint` and reference it directly:
+
+```yaml
+- uses: k3nny/glint@v0.2.28
+  with:
+    file: .gitlab-ci.yml   # optional, default: .gitlab-ci.yml
+    args: '--format sarif' # optional
+```
+
+The action downloads the glint Linux binary into `$RUNNER_TEMP` and runs `glint check`. Only Linux runners are supported (matches the available release binary).
 
 ## Development
 

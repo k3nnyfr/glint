@@ -98,9 +98,9 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 ## CI / editor integration
 
-- **GitLab CI template** — a `.gitlab-ci.yml` snippet that runs `glint` as a pipeline-validation job before the real pipeline executes; publishable to the GitLab CI/CD Catalog
-- **GitHub Actions action** — `uses: k3nny/glint@v1` wrapper for repositories that mirror or manage GitLab pipelines from GitHub
-- **Pre-commit hook** — entry for [pre-commit](https://pre-commit.com) so `glint` runs automatically on `git commit` when `.gitlab-ci.yml` changes
+- ~~**GitLab CI template**~~ — ✓ shipped v0.2.28; `templates/check.yml` is a GitLab CI/CD Catalog component with `spec:` inputs for stage, file, version, allow_failure, and extra args; also usable as a plain local/remote include
+- ~~**GitHub Actions action**~~ — ✓ shipped v0.2.28; `action.yml` composite action downloads the glint Linux binary and runs `glint check`; mirror to GitHub as `k3nny/glint` to reference as `uses: k3nny/glint@v0.2.28`
+- ~~**Pre-commit hook**~~ — ✓ shipped v0.2.28; `.pre-commit-hooks.yaml` defines `language: golang` hook; pre-commit builds glint from source on first run and re-runs on staged `.gitlab-ci.yml` changes
 - **LSP server** — `glint lsp` mode exposing diagnostics over the Language Server Protocol; enables inline squiggles in VS Code, JetBrains, Neovim, etc. without a dedicated extension
 - **VS Code extension** — thin wrapper around the LSP server with syntax highlighting for `.gitlab-ci.yml`
 
