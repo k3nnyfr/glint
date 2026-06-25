@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.26-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.27-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -69,10 +69,17 @@ task test         # run Go unit tests
 task lint-go      # run go vet
 task validate     # run the binary against all testdata fixtures
 task ci           # full check: vet → test → build → validate
+task fuzz         # run fuzz tests for the YAML parser (Ctrl-C to stop; FUZZ_TIME=60s to set duration)
+task changelog    # regenerate CHANGELOG.md from git history via git-cliff
+task changelog-next  # preview unreleased section (dry-run, no file written)
 task build-windows  # cross-compile for Windows x64 (requires a tagged commit → glint-<tag>.exe)
 task build-linux    # cross-compile for Linux x64 (requires a tagged commit → glint-<tag>-linux-amd64)
 task clean        # remove build artifacts
 ```
+
+**Optional tools:**
+
+- [git-cliff](https://git-cliff.org) — changelog generator used by `task changelog`. Install with `brew install git-cliff` or `cargo install git-cliff`.
 
 ## Project structure
 

@@ -119,5 +119,5 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - ~~**`glint explain <rule-id>`**~~ — ✓ shipped v0.2.20; prints rule description, rationale, bad-YAML example, and fix; `glint explain` (no arg) lists all rules
 - ~~**Semantic versioning and first release**~~ — shipped as `v0.1.0` (2026-06-07)
 - ~~**Subcommand CLI**~~ — shipped as `v0.2.0` (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`
-- **Changelog automation** — generate release notes from Conventional Commits via `git-cliff` or similar
-- **Fuzz testing** — add a `go test -fuzz` target for the YAML parser to harden it against malformed input
+- ~~**Changelog automation**~~ — ✓ shipped v0.2.27; `cliff.toml` configures git-cliff to produce Keep-a-Changelog–compatible release notes from Conventional Commits; `task changelog` regenerates `CHANGELOG.md`, `task changelog-next` previews unreleased entries
+- ~~**Fuzz testing**~~ — ✓ shipped v0.2.27; `FuzzParseBytes` and `FuzzSanitizeYAMLEscapes` in `internal/model/fuzz_test.go`; seeds run as regular tests in CI; `task fuzz` runs them continuously (default 30 s)

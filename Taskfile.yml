@@ -175,6 +175,20 @@ tasks:
     generates:
       - "{{.BINARY}}-{{.TAG}}-linux-amd64"
 
+  fuzz:
+    desc: "Run fuzz tests for the YAML parser and sanitizer (set FUZZ_TIME=60s to control duration, default 30s)"
+    cmds:
+      - "{{.GO}} test -fuzz=FuzzParseBytes          -fuzztime=${FUZZ_TIME:-30s} ./internal/model/"
+      - "{{.GO}} test -fuzz=FuzzSanitizeYAMLEscapes -fuzztime=${FUZZ_TIME:-30s} ./internal/model/"
+
+  changelog:
+    desc: "Regenerate CHANGELOG.md from git history (requires git-cliff — see README)"
+    cmd: git cliff --config cliff.toml --output CHANGELOG.md
+
+  changelog-next:
+    desc: "Preview unreleased changelog entries without writing (requires git-cliff)"
+    cmd: git cliff --config cliff.toml --unreleased
+
   clean:
     desc: Remove build artifacts
     cmd: rm -f {{.BINARY}} {{.BINARY}}-*.exe {{.BINARY}}-*-linux-amd64

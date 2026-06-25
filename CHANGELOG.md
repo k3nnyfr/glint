@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.27] - 2026-06-25
+
+### Added
+
+- **Fuzz testing** — `FuzzParseBytes` and `FuzzSanitizeYAMLEscapes` in `internal/model/fuzz_test.go` verify that neither the YAML parser nor the escape sanitizer panics on arbitrary input. Successful parses are also checked for structural integrity (non-nil pipeline, no empty job names). Run with `task fuzz` (default 30 s per target; set `FUZZ_TIME=60s` to extend). Found failures are saved to `testdata/fuzz/` for regression.
+
+- **Changelog automation** — `cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog–compatible release notes from Conventional Commits. `task changelog` regenerates `CHANGELOG.md` from the full git history; `task changelog-next` previews only unreleased commits without writing. Install git-cliff with `brew install git-cliff` or `cargo install git-cliff`.
+
 ## [0.2.26] - 2026-06-25
 
 ### Changed

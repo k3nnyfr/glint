@@ -1,0 +1,65 @@
+# git-cliff configuration for glint
+# Install: brew install git-cliff  OR  cargo install git-cliff
+# Usage:   task changelog            -- regenerate full CHANGELOG.md
+#          task changelog-next       -- preview unreleased section (dry-run)
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+This project uses [Semantic Versioning](https://semver.org).
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+
+{% else %}\
+## [Unreleased]
+
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}\
+### {{ group | upper_first }}
+
+{% for commit in commits %}\
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}\
+{{ commit.message | upper_first }}\
+{% if commit.breaking %} **[BREAKING]**{% endif %}
+
+{% endfor %}\
+{% endfor %}\
+"""
+trim = true
+footer = ""
+postprocessors = []
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_preprocessors = [
+  # Drop Co-Authored-By trailers (should not appear in subjects, but guard anyway).
+  { pattern = "Co-Authored-By:.*", replace = "" },
+]
+commit_parsers = [
+  # Breaking changes (type! or scope!) — promote above everything else.
+  { message = "^[a-z]+\\([a-z-]+\\)!:|^[a-z]+!:", group = "Breaking Changes" },
+  { message = "^feat",     group = "Added" },
+  { message = "^fix",      group = "Fixed" },
+  { message = "^perf",     group = "Changed" },
+  { message = "^refactor", group = "Changed" },
+  # Maintenance commits — omit from the changelog body.
+  { message = "^docs",   skip = true },
+  { message = "^style",  skip = true },
+  { message = "^test",   skip = true },
+  { message = "^chore",  skip = true },
+  { message = "^build",  skip = true },
+  { message = "^claude", skip = true },
+]
+protect_breaking_commits = false
+filter_commits = true
+tag_pattern = "v[0-9].*"
+topo_order = false
+sort_commits = "oldest"
