@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.3.1] - 2026-06-26
+
+### Changed
+
+- **`glint graph` default mode** — no-mode invocation now prints the job tree only (previously printed tree + `---` separator + Mermaid include graph). Use `glint graph includes` for the Mermaid include-dependency output.
+
+### Fixed
+
+- **`glint check --help`** — `--proxy` option was implemented but missing from the help text.
+- **`glint graph --help`** — `--cache-dir`, `--offline`, and `--proxy` options were implemented but missing from the help text.
+- **CI test** — `TestLoad_ReadError` skipped when running as root; Gitea runners execute as root which bypasses file permission checks, causing the test to fail.
+
 ## [0.3.0] - 2026-06-26
 
 ### Added
