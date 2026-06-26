@@ -52,15 +52,15 @@ task build
 glint [OPTIONS] <COMMAND>
 
 Commands:
-  check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
+  check    Lint a pipeline file — exits 0 (clean), 2 (errors), or 10 (warnings only)
+  render   Resolve all includes and extends into a single merged YAML file
   graph    Visualise the pipeline as a job tree or Mermaid graph
-  explain  Print description and fix for a lint rule
+  explain  Show description and fix for a lint rule (e.g. glint explain GL007)
   lsp      Start a Language Server Protocol server (stdin/stdout)
 ```
 
-Run `glint <command> --help` for all flags. See [USAGE.md](USAGE.md) for full
-examples covering output formats, context simulation, remote includes, cache,
-graph modes, and project configuration.
+Run `glint <command> --help` for all flags. See [FEATURES.md](FEATURES.md) for the
+complete feature reference.
 
 ## Integrations
 
@@ -71,7 +71,7 @@ Add to `.pre-commit-config.yaml` in your repository to run glint automatically w
 ```yaml
 repos:
   - repo: https://git.k3nny.fr/k3nny/glint
-    rev: v0.2.28
+    rev: v0.3.0
     hooks:
       - id: glint
 ```
@@ -89,7 +89,7 @@ include:
 
 # As a Catalog component (after publishing to a GitLab instance):
 include:
-  - component: $CI_SERVER_FQDN/k3nny/glint/check@v0.2.28
+  - component: $CI_SERVER_FQDN/k3nny/glint/check@v0.3.0
     inputs:
       stage: validate          # optional, default: validate
       allow_failure: true      # optional, default: false
@@ -102,7 +102,7 @@ The component downloads the glint Linux binary, runs `glint check`, and respects
 Copy [`action.yml`](action.yml) from this repository, or mirror this repo to GitHub as `k3nny/glint` and reference it directly:
 
 ```yaml
-- uses: k3nny/glint@v0.2.28
+- uses: k3nny/glint@v0.3.0
   with:
     file: .gitlab-ci.yml   # optional, default: .gitlab-ci.yml
     args: '--format sarif' # optional

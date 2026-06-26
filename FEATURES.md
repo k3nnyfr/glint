@@ -118,6 +118,30 @@ Jobs whose name starts with `.` are reusable templates; most rules are skipped f
 
 ---
 
+## Pipeline rendering (`glint render`)
+
+`glint render <PIPELINE>` resolves all `include:` and `extends:` chains and
+writes the fully flattened pipeline to a single YAML file. This is what GitLab
+CI processes server-side.
+
+```bash
+glint render .gitlab-ci.yml                        # writes rendered.gitlab-ci.yml
+glint render --output merged.yml .gitlab-ci.yml    # custom output path
+glint render --output - .gitlab-ci.yml | yq .      # stream to stdout
+glint render --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
+```
+
+**Output order:** `stages`, `variables`, `default`, `workflow`, template jobs
+(`.name`, alphabetical), then regular jobs (alphabetical). The `include:` key
+(consumed by resolution) and `extends:` keys (merged into each job) are
+stripped. All other fields are preserved verbatim.
+
+Accepts the same network flags as `glint check`: `--token`, `--gitlab-url`,
+`--cache-dir`, `--offline`, `--proxy`. When writing to a file (not stdout)
+a summary line is printed to stderr: `rendered: <file> (N job(s), M stage(s))`.
+
+---
+
 ## Context simulation
 
 Pass `--branch`, `--tag`, `--source`, or `--var` to evaluate `rules:if:` and
@@ -184,27 +208,37 @@ test-job    active       active
 
 ---
 
-## Output formats
+## Output formats (`glint check`)
 
 Pass `--format` to `glint check`. In structured formats the summary line is
 written to stderr so stdout contains only the machine-readable payload.
 
 | Format | Flag | Description |
 |--------|------|-------------|
-| Text (default) | `--format text` | Ruff-style `file:line: RULE [sev] message` |
+| Text (default) | `--format text` | Four aligned columns (location, rule, severity, message); `error` in bold red, `warning` in bold orange; colors auto-detected (suppressed when `NO_COLOR` is set or stdout is not a terminal) |
 | JSON | `--format json` | Stable schema (version 1); `findings` array + `summary` block |
 | SARIF 2.1.0 | `--format sarif` | Consumed by GitHub Code Scanning and GitLab SAST |
 | JUnit XML | `--format junit` | CI test-report artifact (`artifacts:reports:junit`) |
 | GitHub annotations | `--format github` | `::error file=…,line=…,title=RULE::message` inline PR comments |
 
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No findings (clean pipeline) |
+| `2` | One or more error findings |
+| `10` | One or more warning findings, no errors |
+
+Use `--no-warn` to suppress all warnings; a pipeline with only warnings then exits `0`.
+
 **JSON schema (`schema_version: 1`):**
 ```json
 {
   "schema_version": 1,
-  "glint_version": "v0.2.20",
+  "glint_version": "v0.3.0",
   "pipeline": ".gitlab-ci.yml",
   "findings": [
-    {"rule":"GL004","severity":"error","file":".gitlab-ci.yml","line":14,
+    {"rule":"GL004","severity":"error","file":".gitlab-ci.yml","line":14,"column":1,
      "job":"deploy","message":"stage \"production\" is not defined in 'stages'"}
   ],
   "summary": {"total": 1, "errors": 1, "warnings": 0}
@@ -296,6 +330,8 @@ jobs or pipeline-level findings.
 | `mermaid` | Print Mermaid flowchart to stdout (paste into [mermaid.live](https://mermaid.live)) |
 | `html` | Write self-contained HTML to `--out` with mouse pan/zoom and a click-to-open job-detail sidebar |
 
+**Context flags** (`--branch`, `--tag`, `--source`, `--var`, `--changes`, `--changes-from`) work on all modes and annotate or colour jobs based on their evaluated state. Use `--no-skipped` to remove jobs that would not run in the given context from all output entirely (tree, SVG, HTML, and Mermaid).
+
 **Visual distinctions in SVG and HTML output:**
 
 - **Regular** — blue circle with checkmark
@@ -303,7 +339,7 @@ jobs or pipeline-level findings.
 - **Trigger** — purple circle with chevron
 - **Delayed** — yellow circle with clock
 - **`when: on_failure`** — red circle (`#d9534f`) with X mark; dashed chip border
-- **Skipped** (with `--branch`/`--tag`/`--source` context flags) — grey circle, dimmed job name
+- **Skipped** (with context flags, without `--no-skipped`) — grey circle, dimmed job name
 
 In DAG pipelines (any job has `needs:`) the pipeline graph uses job-to-job
 Bézier connectors. In classic mode a bus-bar pattern (vertical rail + per-job
@@ -318,7 +354,10 @@ shown as a tooltip in SVG viewers and as a sidebar panel in HTML output.
 
 | Tool | Description |
 |------|-------------|
+| `glint render <PIPELINE>` | Resolve all includes and extends; write the fully merged pipeline to a single YAML file. See [Pipeline rendering](#pipeline-rendering-glint-render) above. |
 | `glint explain <RULE>` | Print description, rationale, bad-YAML example, and fix for a rule. Case-insensitive (`gl007` = `GL007`). |
 | `glint explain` | List all rules with ID, severity, and title. |
-| `--list-vars` | Print all resolved pipeline variables (pipeline + workflow rules + context) to stderr before linting. |
+| `--no-warn` | (`glint check`) Discard all warning findings before output and exit-code calculation. |
+| `--no-skipped` | (`glint graph`) Remove skipped jobs from graph output entirely. |
+| `--list-vars` | (`glint check`, `glint graph`) Print all resolved pipeline variables to stderr before continuing. |
 | `--version` / `-v` | Print the compiled version string. |
