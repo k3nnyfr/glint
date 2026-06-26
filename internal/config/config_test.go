@@ -103,6 +103,9 @@ func TestLoad_StopsAtGitRoot(t *testing.T) {
 // TestLoad_ReadError covers the !os.IsNotExist(err) branch (config.go:59-61)
 // when the file exists but is not readable.
 func TestLoad_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping: root bypasses file permission checks")
+	}
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, Filename)
 	if err := os.WriteFile(cfgPath, []byte("ignore: []"), 0o000); err != nil {
