@@ -68,31 +68,31 @@ tasks:
       - cmd: ./{{.BINARY}} check --branch feat/x testdata/rules_if_expr.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/workflow_vars.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check --branch main testdata/workflow_vars.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check --branch develop testdata/workflow_vars.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check --branch feat/x testdata/workflow_vars.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/workflow_escape.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/variable_refs.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/variable_refs_included.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/dead_rules.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/new_rules_valid.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/new_rules_invalid.yml
         ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-coverage.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/samba/.gitlab-ci-private.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check --format json testdata/valid.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check --format sarif testdata/valid.yml
@@ -104,15 +104,15 @@ tasks:
       - cmd: ./{{.BINARY}} check testdata/config_ignored/.gitlab-ci.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/config_severity/.gitlab-ci.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/config_suppress/.gitlab-ci.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/static_dead_rules.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/inherit_dead.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/inherit_dead_fields.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} check testdata/rules_needs_valid.yml
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/rules_needs_invalid.yml
@@ -124,7 +124,7 @@ tasks:
       - cmd: ./{{.BINARY}} explain GL044
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/insecure_remote_include.yml
-        ignore_error: false
+        ignore_error: true
       - cmd: ./{{.BINARY}} explain
         ignore_error: false
 

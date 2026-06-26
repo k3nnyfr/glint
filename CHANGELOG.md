@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.3.0] - 2026-06-26
+
+### Added
+
+- **`glint render` subcommand** — resolves all `include:` and `extends:` chains and writes the fully flattened pipeline to a single YAML file (default: `rendered.gitlab-ci.yml`; use `--output -` for stdout). Strips the consumed `include:` and `extends:` keys; retains template jobs (`.name`). Accepts the same network flags as `glint check` (`--token`, `--gitlab-url`, `--cache-dir`, `--offline`, `--proxy`). Useful for inspecting what GitLab CI actually sees or running further local tooling.
+
+- **`glint check --no-warn`** — discard all warning findings before output and exit-code calculation. Mixed pipelines (errors + warnings) still exit 2 but only errors are printed. Warnings-only pipelines report "OK" and exit 0.
+
+- **`glint graph --no-skipped`** — remove jobs that evaluate to `skipped` in the given context (or the implicit `branch=main` default) from all graph output: tree, SVG, HTML, and Mermaid.
+
+- **Colorized, columnized text output** — `glint check` (text format) now renders findings in four aligned columns: location, rule ID, severity, message. `error` is printed in bold red; `warning` in bold orange. Colors are auto-detected (stdout must be a terminal) and suppressed when `NO_COLOR` is set. Location uses `file:line:col` format when column information is available.
+
+- **`line:col` locations** — `Column int` added to `model.Job` (set from the YAML parser's `yaml.Node.Column`) and propagated to `Finding.Column` across all linter rules. Plain-text and `Finding.String()` now emit `file:line:col` when column is known.
+
+### Changed
+
+- **Exit codes** *(breaking)* — `glint check` now exits `2` when one or more error findings are present (previously `1`) and `10` when findings contain only warnings. Exit `0` remains for a clean pipeline. Errors take precedence over warnings. Scripts that test `[ $? -eq 1 ]` need to be updated to `[ $? -eq 2 ]`.
+
 ## [0.2.31] - 2026-06-26
 
 ### Added

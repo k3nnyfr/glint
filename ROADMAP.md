@@ -53,6 +53,7 @@ The current rule set covers the most common sources of broken pipelines. These a
 - [x] **Recursive include depth limit** — shipped v0.2.17; depth capped at 100 (matching GitLab); project/component includes now tracked in visited set to prevent cross-file cycles
 - [x] **Offline mode / cache** — shipped v0.2.17; `--cache-dir DIR` persists fetched templates; `--offline` serves from cache only; default cache dir (`~/.cache/glint`) used automatically with `--offline`
 - [x] **`include: inputs:`** — shipped v0.2.17; `$[[ inputs.KEY ]]` and `$[[ inputs.KEY | default(…) ]]` placeholders in fetched component YAML are substituted from the include's `with:` block before parsing
+- [x] **`glint render` subcommand** — shipped v0.3.0; resolves all `include:` and `extends:` chains into a single flat YAML file; strips consumed keys; accepts same network flags as `glint check`; default output `rendered.gitlab-ci.yml`, use `--output -` for stdout
 
 ---
 
@@ -79,6 +80,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - [x] **Mermaid pipeline output** — shipped v0.2.25; `glint graph pipeline --format mermaid` prints a Mermaid flowchart to stdout (paste into mermaid.live)
 - [x] **Same-stage job ordering** — shipped v0.2.26; jobs within a stage that have `needs:` between each other are placed in topological sub-columns (left-to-right by depth); stage header spans all sub-columns
 - [x] **Graph links rendered behind job chips** — shipped v0.2.26; SVG connectors (Bézier curves and bus-bar stubs) are drawn before job chips so lines pass behind rectangles
+- [x] **`glint graph --no-skipped`** — shipped v0.3.0; removes jobs evaluated as `skipped` in the given context from tree, SVG, HTML, and Mermaid output
 
 ---
 
@@ -86,6 +88,8 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 - [x] **File and line numbers on findings** — shipped post-v0.2.0; every finding includes the source file and exact line of the job key; works across local includes, remote project templates, and fetched component templates
 - [x] **Ruff-style output format** — shipped v0.2.11; findings follow `file:line: RULEID [severity] message` matching the convention used by ruff and other modern linters
+- [x] **Colorized, columnized text output** — shipped v0.3.0; four aligned columns (location, rule, severity, message); `error` in bold red, `warning` in bold orange; auto-detected terminal color (respects `NO_COLOR`)
+- [x] **`line:col` locations** — shipped v0.3.0; `Column int` on `model.Job` and `Finding`; text output and `Finding.String()` emit `file:line:col` when column is known
 - [x] **`needs: optional: true` false-positive errors** — shipped post-v0.2.0; optional missing needs are downgraded to `[WARNING]`
 - [x] **`extends:` jobs with missing script false errors** — shipped post-v0.2.0; jobs using `extends:` that have no `script` after resolution emit `[WARNING]` (the script may come from an unfetchable remote base)
 - [x] **`rules:if:` static reachability (GL042)** — shipped v0.2.20; warns when all `rules:if:` conditions evaluate to false given declared variable values (only fires when all referenced vars are declared in YAML)
@@ -129,3 +133,5 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - [x] **Subcommand CLI** — shipped v0.2.0 (2026-06-11); `glint check` / `glint graph [mode]` with ruff-style `--help`
 - [x] **Changelog automation** — shipped v0.2.27; `cliff.toml` configures git-cliff to produce Keep-a-Changelog–compatible release notes from Conventional Commits; `task changelog` regenerates `CHANGELOG.md`, `task changelog-next` previews unreleased entries
 - [x] **Fuzz testing** — shipped v0.2.27; `FuzzParseBytes` and `FuzzSanitizeYAMLEscapes` in `internal/model/fuzz_test.go`; seeds run as regular tests in CI; `task fuzz` runs them continuously (default 30 s)
+- [x] **`glint check --no-warn`** — shipped v0.3.0; discards all warning findings before output and exit-code calculation; mixed pipelines (errors + warnings) still exit 2 but only errors are printed; warnings-only pipelines exit 0
+- [x] **Exit codes 2 / 10** *(breaking)* — shipped v0.3.0; `glint check` exits `2` when errors are present (previously `1`) and `10` when findings contain only warnings; exit `0` for clean

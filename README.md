@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.31-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.3.0-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -17,10 +17,11 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 
 - **Lints** — 45 rules covering pipeline structure, keyword constraints, `needs:`/`dependencies:` graphs, expression reachability, and deprecations (GL001–GL045); run `glint explain <ID>` for any rule
 - **Resolves includes** — local files, HTTPS URLs, GitLab project templates, and CI/CD Catalog components, with offline cache support and HTTP proxy support (`--proxy` flag or `proxy:` in `.glint.yml`)
+- **Renders merged pipeline** — `glint render` resolves all includes and `extends:` chains into a single flat YAML file, matching what GitLab CI actually processes
 - **Simulates context** — `--branch`, `--tag`, `--source` flags evaluate `rules:if:` and `only`/`except` to show which jobs would be active, manual, or skipped; `--context branch=main --context branch=develop` prints a multi-column comparison table across multiple contexts in one run
-- **Multiple output formats** — `--format text` (default, ruff-style), `json`, `sarif` (GitHub Code Scanning / GitLab SAST), `junit`, `github` (PR annotations)
-- **Project config** — `.glint.yml` for rule suppression, severity overrides, token/URL/proxy defaults; `# glint: ignore RULE` for per-job inline suppression
-- **Graph visualization** — `glint graph` prints a terminal job tree; `glint graph pipeline` renders a GitLab CI-style SVG/PNG; `--format mermaid` emits a Mermaid flowchart; `--format html` produces a self-contained HTML file with pan/zoom and a job-detail sidebar; context flags grey out skipped jobs
+- **Multiple output formats** — `--format text` (default, colorized and column-aligned), `json`, `sarif` (GitHub Code Scanning / GitLab SAST), `junit`, `github` (PR annotations); exits `2` on errors, `10` on warnings only
+- **Project config** — `.glint.yml` for rule suppression, severity overrides, token/URL/proxy defaults; `# glint: ignore RULE` for per-job inline suppression; `--no-warn` flag to suppress all warnings
+- **Graph visualization** — `glint graph` prints a terminal job tree; `glint graph pipeline` renders a GitLab CI-style SVG/PNG; `--format mermaid` emits a Mermaid flowchart; `--format html` produces a self-contained HTML file with pan/zoom and a job-detail sidebar; `--no-skipped` hides jobs that would not run in the given context
 - **LSP server** — `glint lsp` starts a Language Server Protocol server over stdin/stdout; connect with any LSP client to get inline diagnostics (rule ID as code, error/warning severity) in VS Code, Neovim, Emacs, JetBrains, etc.
 - **VS Code extension** — `editors/vscode/` wraps the LSP server; inline squiggles for every glint rule directly in the editor
 
