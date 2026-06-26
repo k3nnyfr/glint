@@ -317,10 +317,10 @@ jobs or pipeline-level findings.
 
 | Mode | Output |
 |------|--------|
-| `tree` (default) | Terminal job tree: stages as branches, jobs as leaves; annotated with `[manual]`, `[delayed]`, `[trigger]` where applicable |
-| `includes` | Mermaid flowchart to stdout; colour-coded nodes by include type (local, remote, project, component, template) |
+| `tree` *(default)* | Terminal job tree: stages as branches, jobs as leaves; annotated with `[manual]`, `[delayed]`, `[trigger]` where applicable |
+| `includes` | Mermaid flowchart of include dependencies to stdout; colour-coded by include type (local, remote, project, component, template) |
 | `pipeline` | GitLab CI-style SVG/PNG written to `--out` directory (default: `glint-out/`); converted to PNG when `rsvg-convert`, `inkscape`, or `magick` is available |
-| `all` | `includes` to stdout + `pipeline` file path to stderr |
+| `all` | `includes` Mermaid to stdout + `pipeline` SVG/PNG path to stderr |
 
 **`glint graph pipeline --format <FORMAT>`**
 

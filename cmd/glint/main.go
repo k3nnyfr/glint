@@ -498,12 +498,12 @@ func cmdGraph(args []string) {
 	format := fs.String("format", "svg", "pipeline output format: svg, mermaid, or html")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
-		fmt.Fprint(os.Stderr, `Visualise the pipeline as a job tree and/or Mermaid graph.
+		fmt.Fprint(os.Stderr, `Visualise the pipeline as a job tree or graph.
 
 Usage: glint graph [MODE] [OPTIONS] <PIPELINE>
 
 Arguments:
-  [MODE]      Graph mode; must appear before options [default: tree+includes]
+  [MODE]      Graph mode; must appear before options [default: tree]
               [possible values: tree, includes, pipeline, all]
   <PIPELINE>  Path to the .gitlab-ci.yml file
 
@@ -592,11 +592,11 @@ always evaluated.
 Examples:
   glint graph .gitlab-ci.yml
   glint graph tree .gitlab-ci.yml
+  glint graph includes .gitlab-ci.yml > includes.mmd
   glint graph tree --branch develop .gitlab-ci.yml
   glint graph tree --tag v1.0.0 .gitlab-ci.yml
   glint graph tree --list-vars .gitlab-ci.yml
   glint graph tree --changes src/main.go .gitlab-ci.yml
-  glint graph includes .gitlab-ci.yml > includes.mmd
   glint graph pipeline .gitlab-ci.yml
   glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
   glint graph pipeline --format mermaid .gitlab-ci.yml
@@ -709,11 +709,7 @@ Examples:
 	}
 
 	switch mode {
-	case "default":
-		fmt.Print(graph.Tree(p, ctx))
-		fmt.Println("---")
-		fmt.Print(graph.Includes(path, p.Include, cfg))
-	case "tree":
+	case "default", "tree":
 		fmt.Print(graph.Tree(p, ctx))
 	case "includes":
 		fmt.Print(graph.Includes(path, p.Include, cfg))
