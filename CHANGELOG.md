@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.4.1] - 2026-06-26
+
+### Fixed
+
+- **Release CI** — added Linux arm64, macOS Intel, and macOS Apple Silicon build steps; renamed Windows output to `glint-<tag>-windows-amd64.exe` for consistency; added missing `-X main.version=<tag>` ldflags so release binaries report the correct version instead of `"dev"`.
+
 ## [0.4.0] - 2026-06-26
 
 ### Added
