@@ -27,24 +27,29 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 
 See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules table, and [ROADMAP.md](ROADMAP.md) for planned improvements.
 
-## Requirements
-
-- Go 1.21 or later
-- [Task](https://taskfile.dev) (optional, for development tasks)
-
 ## Installation
+
+See [INSTALL.md](INSTALL.md) for all options: pre-built binaries (Linux amd64/arm64, macOS Intel/Apple Silicon, Windows), Homebrew tap, and building from source.
+
+Quick start (Linux/macOS, building from source):
 
 ```bash
 git clone https://git.k3nny.fr/k3nny/glint
 cd glint
 go build -o glint ./cmd/glint/...
+sudo mv glint /usr/local/bin/
 ```
 
-Or with Task:
+Homebrew:
 
 ```bash
-task build
+brew tap k3nny/glint https://github.com/k3nny/homebrew-glint
+brew install glint
 ```
+
+## Requirements
+
+Go 1.21 or later (when building from source). Pre-built binaries have no runtime dependencies.
 
 ## Usage
 
@@ -148,8 +153,12 @@ task changelog-next  # preview unreleased section (dry-run, no file written)
 task ext-install     # install VS Code extension npm dependencies
 task ext-compile     # compile the VS Code extension TypeScript source
 task ext-package     # package the VS Code extension as a .vsix
-task build-windows  # cross-compile for Windows x64 (requires a tagged commit → glint-<tag>.exe)
-task build-linux    # cross-compile for Linux x64 (requires a tagged commit → glint-<tag>-linux-amd64)
+task build-linux-amd64   # cross-compile for Linux x86-64 (requires a tagged commit)
+task build-linux-arm64   # cross-compile for Linux ARM64 (requires a tagged commit)
+task build-darwin-amd64  # cross-compile for macOS Intel (requires a tagged commit)
+task build-darwin-arm64  # cross-compile for macOS Apple Silicon (requires a tagged commit)
+task build-windows       # cross-compile for Windows x86-64 (requires a tagged commit)
+task build-release       # build all platform binaries at once (requires a tagged commit)
 task clean        # remove build artifacts
 ```
 
