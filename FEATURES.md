@@ -7,7 +7,7 @@ For planned work see [ROADMAP.md](ROADMAP.md).
 
 ## Lint rules
 
-Every finding carries a stable rule ID (`GL001` – `GL043`) that can be used to
+Every finding carries a stable rule ID (`GL001` – `GL045`) that can be used to
 suppress, filter, or look up the check. Run `glint explain <ID>` for a
 description, bad-YAML example, and fix.
 
@@ -19,6 +19,7 @@ description, bad-YAML example, and fix.
 | GL002 | ERR | `workflow.rules[*].when` must be `always` or `never` |
 | GL036 | ERR | `default.timeout` is not a valid GitLab CI duration string |
 | GL040 | WARN | A stage name appears more than once in `stages:` |
+| GL045 | WARN | `include: remote:` uses plain `http://` — CI templates fetched unencrypted; prefer `https://` |
 
 ### Job structure
 
@@ -243,9 +244,14 @@ url: https://gitlab.example.com
 
 # Default cache directory.
 cache_dir: ~/.cache/glint
+
+# HTTP proxy for remote includes and GitLab API calls.
+# Overrides HTTP_PROXY / HTTPS_PROXY env vars when set.
+# Leave empty to use system proxy settings.
+proxy: http://proxy.example.com:8080
 ```
 
-**Priority chain:** `--token`/`--gitlab-url` flags > `.glint.yml` > environment variables.
+**Priority chain:** `--token`/`--gitlab-url`/`--proxy` flags > `.glint.yml` > environment variables.
 
 ### Inline suppression (`# glint: ignore`)
 

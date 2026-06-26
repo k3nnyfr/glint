@@ -106,6 +106,18 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 
 - [x] **`.glint.yml` config file** — shipped v0.2.19; `ignore:`, `severity:`, `stages:`, `token:`, `url:`, `cache_dir:`; searched from the pipeline directory up to the git root
 - [x] **Inline suppression comments** — shipped v0.2.19; `# glint: ignore GL007` before a job definition; comma/space-separated rules; `# glint: ignore all` wildcard
+- [x] **Proxy support** — shipped v0.2.31; `--proxy` flag on `check`, `graph`, and `lsp` subcommands; also configurable via `proxy:` in `.glint.yml`; overrides `HTTP_PROXY` / `HTTPS_PROXY` env vars when set
+
+---
+
+## Security & hardening
+
+- [x] **Path traversal guard for local includes** — shipped v0.2.31; `include: local:` paths containing `../../` or similar sequences are rejected instead of reading files outside the repository root
+- [x] **HTTP timeout on remote fetches** — shipped v0.2.31; all HTTP calls via the fetcher use a 30-second timeout to prevent indefinite hangs on slow or unresponsive servers
+- [x] **Unbounded response size cap** — shipped v0.2.31; remote include and GitLab API responses are capped at 10 MiB; responses exceeding the limit are rejected to prevent memory exhaustion
+- [x] **Cache file permissions** — shipped v0.2.31; cache directories are created with mode `0700` and cache files with mode `0600`; previously used world-readable `0755`/`0644`
+- [x] **GL045: HTTP remote include warning** — shipped v0.2.31; warns when `include: remote:` uses a plain `http://` URL; CI templates fetched unencrypted are at risk of tampering
+- [x] **LSP Content-Length DoS cap** — shipped v0.2.31; `glint lsp` rejects messages with `Content-Length` exceeding 64 MiB to prevent memory exhaustion from a malicious client
 
 ---
 

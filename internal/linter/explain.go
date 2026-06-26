@@ -853,4 +853,18 @@ test:
     - if: $CI_COMMIT_BRANCH == "main"
       needs: [build, lint]`,
 	},
+
+	RuleInsecureRemoteInclude: {
+		Title:    "remote include uses plain HTTP",
+		Severity: Warning,
+		Description: "An include: remote: entry uses an http:// URL instead of https://. " +
+			"CI templates fetched over plain HTTP are transmitted in cleartext; an " +
+			"attacker with network access could intercept or modify the template " +
+			"before it is parsed. Use https:// so the connection is encrypted and " +
+			"the server's identity is verified.",
+		Example: `include:
+  - remote: http://ci-templates.example.com/build.yml`,
+		Fix: `include:
+  - remote: https://ci-templates.example.com/build.yml`,
+	},
 }

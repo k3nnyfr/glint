@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.31] - 2026-06-26
+
+### Added
+
+- **Proxy support** — `--proxy <URL>` flag on `glint check`, `glint graph`, and `glint lsp`; also configurable via `proxy:` in `.glint.yml`. When set it takes precedence over `HTTP_PROXY` / `HTTPS_PROXY` env vars; when unset, system proxy settings are honoured automatically. Covers all remote include fetches and GitLab API calls.
+
+- **GL045: HTTP remote include warning** — new pipeline-level lint rule that warns when `include: remote:` uses a plain `http://` URL. CI templates fetched over unencrypted HTTP are at risk of in-transit tampering; `https://` is always preferred.
+
+### Fixed
+
+- **Path traversal in local includes** — `include: local:` paths containing `../` sequences that would escape the repository root (e.g. `../../etc/passwd`) are now rejected with a warning instead of reading arbitrary files from the host.
+
+- **HTTP timeout on remote fetches** — all HTTP calls in `internal/fetcher` now use a 30-second timeout; previously the client had no timeout and could hang indefinitely on slow or unresponsive servers.
+
+- **Unbounded response size** — remote include and GitLab API responses are now capped at 10 MiB using `io.LimitReader`; previously an arbitrarily large response could exhaust process memory.
+
+- **Cache file permissions** — the cache directory is created with mode `0700` (was `0755`) and cache files with `0600` (was `0644`), preventing other local users from reading cached GitLab tokens or pipeline content.
+
+- **LSP Content-Length DoS** — `glint lsp` now rejects incoming messages whose `Content-Length` header exceeds 64 MiB, preventing memory exhaustion from a malicious or misbehaving LSP client.
+
 ## [0.2.30] - 2026-06-26
 
 ### Added

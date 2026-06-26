@@ -38,6 +38,12 @@ type Config struct {
 	// CacheDir is the default directory for caching fetched remote includes.
 	// Overridden by the --cache-dir flag.
 	CacheDir string `yaml:"cache_dir"`
+
+	// Proxy is the HTTP proxy URL for fetching remote includes and GitLab API
+	// calls (e.g. "http://proxy.example.com:8080"). Overridden by the --proxy
+	// flag. When empty, system proxy settings (HTTP_PROXY / HTTPS_PROXY /
+	// NO_PROXY env vars) are used automatically.
+	Proxy string `yaml:"proxy"`
 }
 
 // Load searches for a .glint.yml file starting from dir and walking up toward

@@ -133,6 +133,12 @@ func resolveLocalInclude(p *model.Pipeline, rawPath string, cfg fetcher.GitLabCo
 	absPath := filepath.Join(rootDir, relPath)
 	label := "local " + rawPath
 
+	// Guard against path traversal: reject any path that escapes rootDir.
+	rel, err := filepath.Rel(rootDir, absPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return []IncludeWarning{{Label: label, Err: fmt.Errorf("path escapes repository root: %s", rawPath)}}, nil
+	}
+
 	if visited[absPath] {
 		return nil, nil
 	}

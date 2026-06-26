@@ -8,7 +8,17 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
+
+// httpClient is the shared HTTP client for all fetcher requests.
+// Timeout guards against hung remote servers. Transport is intentionally nil
+// so http.DefaultTransport is used dynamically — allowing tests to swap it.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
+// maxResponseBytes is the per-response size cap. Responses larger than this
+// are rejected to prevent memory exhaustion from pathological servers.
+const maxResponseBytes int64 = 10 << 20 // 10 MiB
 
 // TokenSource describes where a token was found, which determines the correct
 // authentication header to use with the GitLab API.
@@ -27,6 +37,10 @@ type GitLabConfig struct {
 	Source   TokenSource
 	CacheDir string // local cache directory; empty = caching disabled
 	Offline  bool   // when true, return an error instead of making network calls
+	// ProxyURL overrides the HTTP proxy for all requests made with this config.
+	// Empty string means use system proxy settings (HTTP_PROXY / HTTPS_PROXY /
+	// NO_PROXY env vars honoured automatically by http.DefaultTransport).
+	ProxyURL string
 }
 
 // AutoConfig builds a GitLabConfig from environment variables.
@@ -54,6 +68,33 @@ func AutoConfig() GitLabConfig {
 	}
 
 	return cfg
+}
+
+// WithProxy returns a copy of cfg with ProxyURL set.
+func (cfg GitLabConfig) WithProxy(proxyURL string) GitLabConfig {
+	cfg.ProxyURL = proxyURL
+	return cfg
+}
+
+// client returns an HTTP client for this config.
+// When ProxyURL is set it takes precedence over system proxy env vars;
+// otherwise http.DefaultTransport's built-in ProxyFromEnvironment is used.
+func (cfg GitLabConfig) client() *http.Client {
+	if cfg.ProxyURL == "" {
+		return httpClient
+	}
+	proxyURL, err := url.Parse(cfg.ProxyURL)
+	if err != nil {
+		return httpClient
+	}
+	// Clone the default transport so all TLS/dial settings are preserved.
+	t, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return httpClient
+	}
+	transport := t.Clone()
+	transport.Proxy = http.ProxyURL(proxyURL)
+	return &http.Client{Timeout: httpClient.Timeout, Transport: transport}
 }
 
 // WithOverrides returns a copy of cfg with the provided overrides applied.
@@ -128,15 +169,18 @@ func (cfg GitLabConfig) FetchFile(project, filePath, ref string) ([]byte, error)
 		}
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.client().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", apiURL, err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+	if int64(len(body)) > maxResponseBytes {
+		return nil, fmt.Errorf("response body exceeds maximum size (%d MiB)", maxResponseBytes>>20)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -169,14 +213,17 @@ func (cfg GitLabConfig) FetchURL(rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("offline mode: %s is not in the local cache (run without --offline first to populate the cache)", rawURL)
 	}
 
-	resp, err := http.Get(rawURL) //nolint:noctx
+	resp, err := cfg.client().Get(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", rawURL, err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading body: %w", err)
+	}
+	if int64(len(body)) > maxResponseBytes {
+		return nil, fmt.Errorf("response body exceeds maximum size (%d MiB)", maxResponseBytes>>20)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s: status %d", rawURL, resp.StatusCode)

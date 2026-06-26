@@ -71,3 +71,28 @@ func TestCacheWrite_MkdirAll(t *testing.T) {
 		t.Errorf("directory not created: %v", err)
 	}
 }
+
+func TestCacheWrite_FilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	cacheWrite(dir, "seckey", []byte("secret"))
+	info, err := os.Stat(cachePath(dir, "seckey"))
+	if err != nil {
+		t.Fatalf("stat cache file: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("cache file mode = %04o; want 0600", mode)
+	}
+}
+
+func TestCacheWrite_DirPermissions(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "glint-cache")
+	cacheWrite(dir, "k", []byte("v"))
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("stat cache dir: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o700 {
+		t.Errorf("cache dir mode = %04o; want 0700", mode)
+	}
+}

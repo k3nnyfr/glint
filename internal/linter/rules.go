@@ -158,4 +158,9 @@ const (
 	// GL044: a rules:needs: entry references a job that does not exist in the pipeline.
 	// rules:needs: overrides the top-level needs: when a specific rule matches (GitLab CI 16.4+).
 	RuleRulesNeedsUnknown = "GL044"
+
+	// GL045: an include: remote: entry uses plain HTTP instead of HTTPS.
+	// CI templates fetched over HTTP are transmitted in cleartext and can be
+	// intercepted or modified in transit.
+	RuleInsecureRemoteInclude = "GL045"
 )

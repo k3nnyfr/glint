@@ -123,6 +123,8 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} explain GL044
         ignore_error: false
+      - cmd: ./{{.BINARY}} check testdata/insecure_remote_include.yml
+        ignore_error: false
       - cmd: ./{{.BINARY}} explain
         ignore_error: false
 

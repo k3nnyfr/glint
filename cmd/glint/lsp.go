@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"git.k3nny.fr/glint/internal/config"
 	"git.k3nny.fr/glint/internal/fetcher"
 	"git.k3nny.fr/glint/internal/lsp"
 )
@@ -15,6 +16,7 @@ func cmdLSP(args []string) {
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
 	cacheDir := fs.String("cache-dir", "", "directory for caching fetched remote includes")
 	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
+	proxy := fs.String("proxy", "", "HTTP proxy URL for remote includes and GitLab API calls (e.g. http://proxy:8080); overrides system proxy env vars")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "glint %s\n\n", version)
 		fmt.Fprint(os.Stderr, `Start a Language Server Protocol server for .gitlab-ci.yml files.
@@ -42,6 +44,12 @@ Options:
           Do not make any network calls; resolve only local includes.
           Implies --cache-dir default (~/.cache/glint) when not set.
 
+      --proxy <URL>
+          HTTP proxy URL for remote includes and GitLab API calls
+          (e.g. http://proxy:8080). Overrides system proxy env vars
+          (HTTP_PROXY / HTTPS_PROXY). Also configurable via proxy: in
+          .glint.yml.
+
   -h, --help
           Print help
 
@@ -49,19 +57,40 @@ Examples:
   glint lsp
   glint lsp --token glpat-xxxx --cache-dir ~/.cache/glint
   glint lsp --offline
+  glint lsp --proxy http://proxy.example.com:8080
 `)
 	}
 	_ = fs.Parse(args)
 
+	// Load project config from the working directory (the project root from
+	// which the LSP server is launched). CLI flags take priority.
+	wd, _ := os.Getwd()
+	glintCfg, cfgErr := config.Load(wd)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "glint lsp: [warning] %s: %v\n", config.Filename, cfgErr)
+	}
+
+	fetcherToken := *token
+	if fetcherToken == "" {
+		fetcherToken = glintCfg.Token
+	}
+	fetcherURL := *gitlabURL
+	if fetcherURL == "" {
+		fetcherURL = glintCfg.URL
+	}
 	resolvedCacheDir := *cacheDir
+	if resolvedCacheDir == "" {
+		resolvedCacheDir = glintCfg.CacheDir
+	}
 	if resolvedCacheDir == "" {
 		resolvedCacheDir = defaultCacheDir()
 	}
-	if *offline && resolvedCacheDir == "" {
-		resolvedCacheDir = defaultCacheDir()
+	resolvedProxy := *proxy
+	if resolvedProxy == "" {
+		resolvedProxy = glintCfg.Proxy
 	}
 
-	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token, resolvedCacheDir, *offline)
+	cfg := fetcher.AutoConfig().WithOverrides(fetcherURL, fetcherToken, resolvedCacheDir, *offline).WithProxy(resolvedProxy)
 
 	srv := lsp.New(os.Stdin, os.Stdout, cfg, version)
 	if err := srv.Run(); err != nil {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -338,4 +339,47 @@ func TestFetchURL_NotOK(t *testing.T) {
 	cfg := GitLabConfig{}
 	_, err := cfg.FetchURL(srv.URL)
 	if err == nil { t.Fatal("expected error for non-200 status") }
+}
+
+func TestFetchFile_ResponseTooLarge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Write maxResponseBytes+1 bytes to exceed the cap.
+		chunk := make([]byte, 4096)
+		written := int64(0)
+		for written <= maxResponseBytes {
+			n, _ := w.Write(chunk)
+			written += int64(n)
+		}
+	}))
+	defer srv.Close()
+	cfg := GitLabConfig{BaseURL: srv.URL}
+	_, err := cfg.FetchFile("group/project", "/ci.yml", "main")
+	if err == nil {
+		t.Fatal("expected error for oversized response")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestFetchURL_ResponseTooLarge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		chunk := make([]byte, 4096)
+		written := int64(0)
+		for written <= maxResponseBytes {
+			n, _ := w.Write(chunk)
+			written += int64(n)
+		}
+	}))
+	defer srv.Close()
+	cfg := GitLabConfig{}
+	_, err := cfg.FetchURL(srv.URL)
+	if err == nil {
+		t.Fatal("expected error for oversized response")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("unexpected error: %v", err)
+	}
 }

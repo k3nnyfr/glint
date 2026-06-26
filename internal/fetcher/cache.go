@@ -26,10 +26,10 @@ func cacheWrite(dir, key string, data []byte) {
 	if dir == "" {
 		return
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return
 	}
-	_ = os.WriteFile(cachePath(dir, key), data, 0o644)
+	_ = os.WriteFile(cachePath(dir, key), data, 0o600)
 }
 
 // cachePath returns the filesystem path for a cache entry.

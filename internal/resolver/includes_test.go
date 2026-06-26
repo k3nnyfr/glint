@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"git.k3nny.fr/glint/internal/fetcher"
@@ -329,6 +330,32 @@ func TestResolveLocalInclude_WithNestedIncludes(t *testing.T) {
 	_, _ = resolveLocalInclude(p, "/child.yml", fetcher.GitLabConfig{}, dir, map[string]bool{}, 0)
 	if _, ok := p.Jobs["gc-job"]; !ok {
 		t.Error("grandchild job should be merged")
+	}
+}
+
+func TestResolveLocalInclude_PathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	p := &model.Pipeline{Jobs: map[string]model.Job{}, RawJobs: map[string]map[string]any{}}
+	// A path that escapes the repository root via "../.." must produce a warning,
+	// not silently read an arbitrary file.
+	warnings, _ := resolveLocalInclude(p, "../../etc/passwd", fetcher.GitLabConfig{}, dir, map[string]bool{}, 0)
+	if len(warnings) == 0 {
+		t.Fatal("expected warning for path traversal, got none")
+	}
+	if !strings.Contains(warnings[0].Err.Error(), "path escapes") {
+		t.Errorf("unexpected warning: %v", warnings[0])
+	}
+	if len(p.Jobs) != 0 {
+		t.Error("no jobs should be merged when path escapes root")
+	}
+}
+
+func TestResolveLocalInclude_PathTraversalWithLeadingSlash(t *testing.T) {
+	dir := t.TempDir()
+	p := &model.Pipeline{Jobs: map[string]model.Job{}, RawJobs: map[string]map[string]any{}}
+	warnings, _ := resolveLocalInclude(p, "/../../etc/shadow", fetcher.GitLabConfig{}, dir, map[string]bool{}, 0)
+	if len(warnings) == 0 {
+		t.Fatal("expected warning for path traversal via leading slash, got none")
 	}
 }
 

@@ -66,6 +66,11 @@ func (s *Server) Run() error {
 	}
 }
 
+// maxLSPMessageBytes caps the body size accepted from an LSP client.
+// A legitimate editor message is never this large; enforcing the cap prevents
+// a crafted Content-Length from triggering a multi-gigabyte allocation.
+const maxLSPMessageBytes = 64 << 20 // 64 MiB
+
 // readMessage reads one Content-Length–framed JSON-RPC message from the stream.
 func (s *Server) readMessage() (*Message, error) {
 	var contentLength int
@@ -91,6 +96,9 @@ func (s *Server) readMessage() (*Message, error) {
 	}
 	if contentLength == 0 {
 		return nil, fmt.Errorf("missing or zero Content-Length header")
+	}
+	if contentLength > maxLSPMessageBytes {
+		return nil, fmt.Errorf("Content-Length %d exceeds maximum %d", contentLength, maxLSPMessageBytes)
 	}
 
 	body := make([]byte, contentLength)

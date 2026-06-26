@@ -364,6 +364,20 @@ func TestServer_DidClose_ClearsdiAgnostics(t *testing.T) {
 	}
 }
 
+func TestServer_ContentLengthTooLarge(t *testing.T) {
+	// Craft a header with a content-length that exceeds the cap.
+	// The server must reject it before allocating a giant buffer.
+	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", maxLSPMessageBytes+1)
+	srv, _, _ := newTestServer([]byte(header))
+	err := srv.Run()
+	if err == nil {
+		t.Fatal("expected error for oversized Content-Length, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestServer_UriToPath(t *testing.T) {
 	tests := []struct {
 		uri  string

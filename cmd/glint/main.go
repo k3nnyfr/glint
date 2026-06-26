@@ -119,6 +119,7 @@ func cmdCheck(args []string) {
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
 	cacheDir := fs.String("cache-dir", "", "directory to cache fetched remote includes (created if needed)")
 	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
+	proxy := fs.String("proxy", "", "HTTP proxy URL for remote includes and GitLab API calls (e.g. http://proxy:8080); overrides system proxy env vars")
 	format := fs.String("format", "text", "output format: text, json, sarif, junit, github")
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
@@ -286,8 +287,12 @@ Examples:
 	if *offline && resolvedCacheDir == "" {
 		resolvedCacheDir = defaultCacheDir()
 	}
+	resolvedProxy := *proxy
+	if resolvedProxy == "" {
+		resolvedProxy = glintCfg.Proxy
+	}
 
-	cfg := fetcher.AutoConfig().WithOverrides(fetcherURL, fetcherToken, resolvedCacheDir, *offline)
+	cfg := fetcher.AutoConfig().WithOverrides(fetcherURL, fetcherToken, resolvedCacheDir, *offline).WithProxy(resolvedProxy)
 
 	p, err := model.Parse(path)
 	if err != nil {
@@ -448,6 +453,7 @@ func cmdGraph(args []string) {
 	gitlabURL := fs.String("gitlab-url", "", "GitLab instance URL (overrides CI_SERVER_URL / GITLAB_URL)")
 	cacheDir := fs.String("cache-dir", "", "directory to cache fetched remote includes (created if needed)")
 	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
+	proxy := fs.String("proxy", "", "HTTP proxy URL for remote includes and GitLab API calls (e.g. http://proxy:8080)")
 	out := fs.String("out", "glint-out", "output directory for rendered graph files (pipeline mode)")
 	format := fs.String("format", "svg", "pipeline output format: svg, mermaid, or html")
 	fs.Usage = func() {
@@ -559,13 +565,34 @@ Examples:
 		return
 	}
 	path := fs.Arg(0)
+	rootDir := filepath.Dir(filepath.Clean(path))
 
+	glintCfg, cfgErr := config.Load(rootDir)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "%s: [warning] %s: %v\n", path, config.Filename, cfgErr)
+	}
+
+	fetcherToken := *token
+	if fetcherToken == "" {
+		fetcherToken = glintCfg.Token
+	}
+	fetcherURL := *gitlabURL
+	if fetcherURL == "" {
+		fetcherURL = glintCfg.URL
+	}
 	resolvedCacheDir := *cacheDir
+	if resolvedCacheDir == "" {
+		resolvedCacheDir = glintCfg.CacheDir
+	}
 	if *offline && resolvedCacheDir == "" {
 		resolvedCacheDir = defaultCacheDir()
 	}
+	resolvedProxy := *proxy
+	if resolvedProxy == "" {
+		resolvedProxy = glintCfg.Proxy
+	}
 
-	cfg := fetcher.AutoConfig().WithOverrides(*gitlabURL, *token, resolvedCacheDir, *offline)
+	cfg := fetcher.AutoConfig().WithOverrides(fetcherURL, fetcherToken, resolvedCacheDir, *offline).WithProxy(resolvedProxy)
 
 	p, err := model.Parse(path)
 	if err != nil {
@@ -574,7 +601,6 @@ Examples:
 		return
 	}
 
-	rootDir := filepath.Dir(filepath.Clean(path))
 	resolver.ResolveIncludes(p, cfg, rootDir) //nolint:errcheck
 	resolver.Resolve(p)                       //nolint:errcheck
 

@@ -1,0 +1,8 @@
+stages: [build]
+
+include:
+  - remote: http://ci-templates.example.invalid/template.yml
+
+build-job:
+  stage: build
+  script: echo hello
