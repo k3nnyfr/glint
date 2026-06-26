@@ -148,6 +148,7 @@ func checkVariableRefs(p *model.Pipeline) []Finding {
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
+					Column:   job.Column,
 					Message:  fmt.Sprintf("rules[%d].if: $%s is not declared in pipeline or job variables:", i, varName),
 				})
 			}

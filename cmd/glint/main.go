@@ -420,9 +420,7 @@ Examples:
 	case "github":
 		writeGitHub(os.Stdout, findings)
 	default: // "text"
-		for _, f := range findings {
-			fmt.Println(f)
-		}
+		writeTextFindings(os.Stdout, findings)
 	}
 
 	if len(findings) == 0 {

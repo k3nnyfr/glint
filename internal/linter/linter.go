@@ -22,15 +22,19 @@ type Finding struct {
 	Job      string // empty for pipeline-level findings
 	File     string // source file where the finding originates
 	Line     int    // line number in File (0 = unknown)
+	Column   int    // column number in File (0 = unknown; 1-indexed)
 	Message  string
 }
 
 func (f Finding) String() string {
 	var loc string
 	if f.File != "" {
-		if f.Line > 0 {
+		switch {
+		case f.Line > 0 && f.Column > 0:
+			loc = fmt.Sprintf("%s:%d:%d: ", f.File, f.Line, f.Column)
+		case f.Line > 0:
 			loc = fmt.Sprintf("%s:%d: ", f.File, f.Line)
-		} else {
+		default:
 			loc = fmt.Sprintf("%s: ", f.File)
 		}
 	}
@@ -225,6 +229,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 		if findings[i].Job != "" && findings[i].File == "" {
 			findings[i].File = job.File
 			findings[i].Line = job.Line
+			findings[i].Column = job.Column
 		}
 	}
 	return findings

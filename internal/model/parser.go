@@ -83,7 +83,8 @@ func ParseBytes(data []byte) (*Pipeline, error) {
 			return nil, fmt.Errorf("parsing job %q: %w", key, err)
 		}
 		j.Name = key
-		j.Line = keyNode.Line // exact line of the job name key
+		j.Line = keyNode.Line     // exact line of the job name key
+		j.Column = keyNode.Column // exact column of the job name key
 		p.Jobs[key] = j
 	}
 

@@ -45,9 +45,10 @@ type Workflow struct {
 }
 
 type Job struct {
-	Name string // set by parser, not from YAML
-	File string // source file; set by Parse / resolver
-	Line int    // line of the job key in its source file; set by parser
+	Name   string // set by parser, not from YAML
+	File   string // source file; set by Parse / resolver
+	Line   int    // line of the job key in its source file; set by parser
+	Column int    // column of the job key (1-indexed); set by parser
 	Stage        string   `yaml:"stage"`
 	Script       any `yaml:"script"`       // []string or string (block scalar)
 	Run          any `yaml:"run"`          // alternative to script (CI steps)

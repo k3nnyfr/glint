@@ -99,6 +99,7 @@ func evalRulesReachability(name string, job model.Job, jobVars map[string]string
 		Job:      name,
 		File:     job.File,
 		Line:     job.Line,
+		Column:   job.Column,
 		Message:  "rules: block can never activate: all if: conditions evaluate to false given the declared pipeline variables",
 	}
 }

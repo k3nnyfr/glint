@@ -53,6 +53,7 @@ func checkNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
+					Column:   job.Column,
 					Message:  fmt.Sprintf("needs unknown job %q", entry.job),
 				})
 				continue
@@ -71,6 +72,7 @@ func checkNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
 						Job:      name,
 						File:     job.File,
 						Line:     job.Line,
+						Column:   job.Column,
 						Message: fmt.Sprintf(
 							"needs %q which is in a later stage (%q after %q)",
 							entry.job, neededJob.Stage, job.Stage,
@@ -111,6 +113,7 @@ func checkRulesNeeds(p *model.Pipeline, skipped map[string]bool) []Finding {
 						Job:      name,
 						File:     job.File,
 						Line:     job.Line,
+						Column:   job.Column,
 						Message: fmt.Sprintf(
 							"rules[%d].needs: references unknown job %q",
 							i, entry.job,
@@ -171,6 +174,7 @@ func detectNeedsCycles(graph map[string][]string, jobs map[string]model.Job) []F
 					Job:      name,
 					File:     j.File,
 					Line:     j.Line,
+					Column:   j.Column,
 					Message:  fmt.Sprintf("circular dependency in needs: %v → %s", path, name),
 				})
 			}

@@ -30,6 +30,7 @@ func checkDependencies(p *model.Pipeline, skipped map[string]bool) []Finding {
 					Job:      name,
 					File:     job.File,
 					Line:     job.Line,
+					Column:   job.Column,
 					Message:  fmt.Sprintf("'dependencies' references unknown job %q", dep),
 				})
 				continue
@@ -43,6 +44,7 @@ func checkDependencies(p *model.Pipeline, skipped map[string]bool) []Finding {
 						Job:      name,
 						File:     job.File,
 						Line:     job.Line,
+						Column:   job.Column,
 						Message:  fmt.Sprintf("'dependencies' job %q must be in an earlier stage (in %q, current job is in %q)", dep, depJob.Stage, job.Stage),
 					})
 				}

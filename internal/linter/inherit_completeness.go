@@ -40,6 +40,7 @@ func checkJobInheritCompleteness(p *model.Pipeline, name string, job model.Job) 
 			Job:      name,
 			File:     job.File,
 			Line:     job.Line,
+			Column:   job.Column,
 			Message:  "'inherit: default:' is declared but the pipeline has no 'default:' block — declaration has no effect",
 		}}
 	}
@@ -70,6 +71,7 @@ func checkJobInheritCompleteness(p *model.Pipeline, name string, job model.Job) 
 		Job:      name,
 		File:     job.File,
 		Line:     job.Line,
+		Column:   job.Column,
 		Message: fmt.Sprintf(
 			"'inherit: default: [%s]': %s not defined in the 'default:' block — %s",
 			strings.Join(dead, ", "),
