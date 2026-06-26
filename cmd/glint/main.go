@@ -66,7 +66,8 @@ const globalUsage = `glint: Lint and visualise GitLab CI pipelines locally.
 Usage: glint [OPTIONS] <COMMAND>
 
 Commands:
-  check    Lint a pipeline file — exits 0 (clean) or 1 (errors found)
+  check    Lint a pipeline file — exits 0 (clean), 2 (errors), or 10 (warnings only)
+  render   Resolve all includes and extends into a single merged YAML file
   graph    Visualise the pipeline as a job tree or Mermaid graph
   explain  Show description and fix for a lint rule (e.g. glint explain GL007)
   lsp      Start a Language Server Protocol server (stdin/stdout)
@@ -87,6 +88,8 @@ func main() {
 	switch os.Args[1] {
 	case "check":
 		cmdCheck(os.Args[2:])
+	case "render":
+		cmdRender(os.Args[2:])
 	case "graph":
 		cmdGraph(os.Args[2:])
 	case "explain":
@@ -121,6 +124,7 @@ func cmdCheck(args []string) {
 	offline := fs.Bool("offline", false, "skip all network calls; serve only from --cache-dir")
 	proxy := fs.String("proxy", "", "HTTP proxy URL for remote includes and GitLab API calls (e.g. http://proxy:8080); overrides system proxy env vars")
 	format := fs.String("format", "text", "output format: text, json, sarif, junit, github")
+	noWarn := fs.Bool("no-warn", false, "suppress warning findings; only errors are shown and affect the exit code")
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
 	source := fs.String("source", "", "set CI_PIPELINE_SOURCE")
@@ -137,7 +141,11 @@ func cmdCheck(args []string) {
 		fmt.Fprint(os.Stderr, `Lint a GitLab CI pipeline file.
 
 Resolves local includes and extends chains, then runs all lint rules.
-Exits 0 when no errors are found, 1 when at least one error is reported.
+
+Exit codes:
+  0   no findings (clean)
+  2   one or more errors
+  10  one or more warnings, no errors
 
 Usage: glint check [OPTIONS] <PIPELINE>
 
@@ -148,6 +156,10 @@ Options:
       --format <FORMAT>
           Output format for findings.
           [default: text] [possible values: text, json, sarif, junit, github]
+
+      --no-warn
+          Suppress warning findings. Only errors are printed and counted toward
+          the exit code; warnings are ignored entirely.
 
       --token <TOKEN>
           GitLab personal access token. Required to fetch project: includes;
@@ -402,7 +414,19 @@ Examples:
 
 	findings := linter.Lint(p, skipped)
 	findings = applyConfig(findings, glintCfg, p.Suppressions)
-	errCount, _ := countSeverities(findings)
+
+	// --no-warn: discard warnings before any output or exit-code calculation.
+	if *noWarn {
+		kept := findings[:0]
+		for _, f := range findings {
+			if f.Severity != linter.Warning {
+				kept = append(kept, f)
+			}
+		}
+		findings = kept
+	}
+
+	errCount, warnCount := countSeverities(findings)
 
 	// In structured formats the summary line goes to stderr so stdout is clean.
 	summaryOut := os.Stdout
@@ -426,11 +450,21 @@ Examples:
 	if len(findings) == 0 {
 		fmt.Fprintf(summaryOut, "OK: %s — no issues found (%d job(s), %d stage(s))\n", path, len(p.Jobs), len(p.Stages))
 	} else {
-		fmt.Fprintf(summaryOut, "%d finding(s): %d error(s)\n", len(findings), errCount)
+		switch {
+		case errCount > 0 && warnCount > 0:
+			fmt.Fprintf(summaryOut, "%d finding(s): %d error(s), %d warning(s)\n", len(findings), errCount, warnCount)
+		case errCount > 0:
+			fmt.Fprintf(summaryOut, "%d finding(s): %d error(s)\n", len(findings), errCount)
+		default:
+			fmt.Fprintf(summaryOut, "%d finding(s): %d warning(s)\n", len(findings), warnCount)
+		}
 	}
 
-	if errCount > 0 {
-		exit(1)
+	switch {
+	case errCount > 0:
+		exit(2)
+	case warnCount > 0:
+		exit(10)
 	}
 }
 
@@ -513,6 +547,12 @@ Options:
           Run "git diff --name-only <REF>" to determine changed files for
           rules:changes: evaluation.
 
+      --no-skipped
+          Omit jobs that would be skipped in the given context. Requires at
+          least one context flag (--branch, --tag, --source, --var) or the
+          implicit default context (branch=main). Skipped jobs are removed
+          from the tree, SVG, HTML, and Mermaid output entirely.
+
       --list-vars
           Print all pipeline-level variables collected from the root file and
           every included file (sorted KEY=VALUE) to stderr, then continue
@@ -543,6 +583,7 @@ Examples:
 	branch := fs.String("branch", "", "simulate a branch push (sets CI_COMMIT_BRANCH, …)")
 	tag := fs.String("tag", "", "simulate a tag push (sets CI_COMMIT_TAG, …)")
 	source := fs.String("source", "", "set CI_PIPELINE_SOURCE")
+	noSkipped := fs.Bool("no-skipped", false, "hide jobs that would be skipped in the given context (requires a context)")
 	listVars := fs.Bool("list-vars", false, "print all collected pipeline variables to stderr, then continue")
 	var vars multiFlag
 	fs.Var(&vars, "var", "set a CI variable as KEY=VALUE; repeatable")
@@ -629,6 +670,16 @@ Examples:
 	}
 	if *listVars {
 		printVars(p, ctx)
+	}
+
+	// --no-skipped: remove jobs that evaluate to skipped in the current context
+	// before handing the pipeline to any graph function.
+	if *noSkipped && !ctx.IsEmpty() {
+		for name, job := range p.Jobs {
+			if !strings.HasPrefix(name, ".") && cicontext.EvalJob(job, ctx) == cicontext.JobSkipped {
+				delete(p.Jobs, name)
+			}
+		}
 	}
 
 	switch mode {

@@ -112,7 +112,7 @@ func TestCmdCheck_MissingFile(t *testing.T) {
 	if *code != 2 { t.Errorf("missing file: want exit(2), got %d", *code) }
 }
 
-func TestCmdCheck_WithErrors_ExitsOne(t *testing.T) {
+func TestCmdCheck_WithErrors_ExitsTwo(t *testing.T) {
 	code := captureExit(t)
 	// Pipeline with an error finding (invalid stage reference)
 	content := `
@@ -123,7 +123,7 @@ test-job:
 `
 	path := writePipeline(t, content)
 	cmdCheck([]string{path})
-	if *code != 1 { t.Errorf("pipeline with errors: want exit(1), got %d", *code) }
+	if *code != 2 { t.Errorf("pipeline with errors: want exit(2), got %d", *code) }
 }
 
 func TestCmdCheck_FormatJSON(t *testing.T) {
@@ -703,10 +703,10 @@ func TestCmdCheck_ChangesFrom_Fails(t *testing.T) {
 
 	code := captureExit(t)
 	path := writePipeline(t, minimalPipeline)
-	// Should warn but not crash; pipeline is clean → no exit(1).
+	// Should warn but not crash; pipeline is clean → no exit(2).
 	cmdCheck([]string{"--changes-from", "origin/main", path})
-	if *code == 1 {
-		t.Errorf("expected no exit(1) when --changes-from fails gracefully, got %d", *code)
+	if *code == 2 {
+		t.Errorf("expected no exit(2) when --changes-from fails gracefully, got %d", *code)
 	}
 }
 
@@ -753,10 +753,10 @@ build-job:
 `
 	path := writePipeline(t, content)
 	// build-job's rule fires only if src/** matches; with 0 changed files it is skipped.
-	// Pipeline is clean (no lint errors) → no exit(1).
+	// Pipeline is clean (no lint errors) → no exit(2).
 	cmdCheck([]string{"--changes-from", "origin/main", path})
-	if *code == 1 {
-		t.Errorf("unexpected exit(1): %d", *code)
+	if *code == 2 {
+		t.Errorf("unexpected exit(2): %d", *code)
 	}
 }
 
@@ -770,8 +770,8 @@ func TestCmdGraph_ChangesFrom_Fails(t *testing.T) {
 	code := captureExit(t)
 	path := writePipeline(t, minimalPipeline)
 	cmdGraph([]string{"tree", "--changes-from", "origin/main", path})
-	if *code == 1 {
-		t.Errorf("unexpected exit(1) when --changes-from fails in graph mode")
+	if *code == 2 {
+		t.Errorf("unexpected exit(2) when --changes-from fails in graph mode")
 	}
 }
 
@@ -785,8 +785,8 @@ func TestCmdGraph_ChangesFrom_Success(t *testing.T) {
 	code := captureExit(t)
 	path := writePipeline(t, minimalPipeline)
 	cmdGraph([]string{"tree", "--changes-from", "origin/main", path})
-	if *code == 1 {
-		t.Errorf("unexpected exit(1) in graph --changes-from success path")
+	if *code == 2 {
+		t.Errorf("unexpected exit(2) in graph --changes-from success path")
 	}
 }
 
@@ -801,8 +801,8 @@ func TestCmdGraph_ChangesFrom_EmptyDiff(t *testing.T) {
 	path := writePipeline(t, minimalPipeline)
 	// reliable=true, allChanged nil → allChanged = []string{} branch hit
 	cmdGraph([]string{"tree", "--changes-from", "origin/main", path})
-	if *code == 1 {
-		t.Errorf("unexpected exit(1) in graph --changes-from empty diff")
+	if *code == 2 {
+		t.Errorf("unexpected exit(2) in graph --changes-from empty diff")
 	}
 }
 
@@ -818,8 +818,8 @@ build-job:
 `
 	path := writePipeline(t, content)
 	cmdGraph([]string{"tree", "--changes", "src/app.go", path})
-	if *code == 1 {
-		t.Errorf("unexpected exit(1) with valid pipeline and --changes flag")
+	if *code == 2 {
+		t.Errorf("unexpected exit(2) with valid pipeline and --changes flag")
 	}
 }
 
@@ -848,7 +848,7 @@ deploy-job:
 	// by rules evaluation → needs cross-check suppressed → exit 0.
 	code := captureExit(t)
 	cmdCheck([]string{"--branch", "main", path})
-	if *code == 1 {
+	if *code == 2 {
 		t.Error("skipped job's needs: error should be suppressed in context-scoped lint")
 	}
 }
@@ -873,8 +873,8 @@ deploy-job:
 
 	code := captureExit(t)
 	cmdCheck([]string{"--tag", "v1.0.0", path})
-	if *code != 1 {
-		t.Error("active job's bad needs: should still produce GL027 error")
+	if *code != 2 {
+		t.Error("active job's bad needs: should still produce GL027 error (exit 2)")
 	}
 }
 
@@ -883,7 +883,7 @@ func TestCmdCheck_ContextScopedLinting_SkippedSet_IsNilWhenAllActive(t *testing.
 	code := captureExit(t)
 	path := writePipeline(t, minimalPipeline)
 	cmdCheck([]string{"--branch", "main", path})
-	if *code == 1 {
+	if *code == 2 {
 		t.Error("valid pipeline with all-active jobs should not produce errors")
 	}
 }
@@ -1142,8 +1142,8 @@ test-job:
 `
 	path := writePipeline(t, content)
 	cmdCheck([]string{"--context", "branch=main", path})
-	if *code != 1 {
-		t.Errorf("multi-context error pipeline: want exit(1), got %d", *code)
+	if *code != 2 {
+		t.Errorf("multi-context error pipeline: want exit(2), got %d", *code)
 	}
 }
 

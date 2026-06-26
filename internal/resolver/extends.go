@@ -80,12 +80,15 @@ func Resolve(p *model.Pipeline) ([]ExtendWarning, error) {
 			return extWarnings, fmt.Errorf("job %q: re-decoding merged definition: %w", name, err)
 		}
 		j.Name = name
-		// Preserve source location — File/Line are not part of the YAML map
+		// Preserve source location — these fields are not part of the YAML map
 		// and are lost during the encode/decode round-trip.
 		orig := p.Jobs[name]
 		j.File = orig.File
 		j.Line = orig.Line
+		j.Column = orig.Column
 		p.Jobs[name] = j
+		// Write merged raw map back so p.RawJobs always reflects post-extends state.
+		p.RawJobs[name] = merged
 	}
 
 	return extWarnings, nil
