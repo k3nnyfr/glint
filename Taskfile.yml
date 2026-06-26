@@ -192,6 +192,22 @@ tasks:
     desc: "Preview unreleased changelog entries without writing (requires git-cliff)"
     cmd: git cliff --config cliff.toml --unreleased
 
+  ext-install:
+    desc: Install VS Code extension npm dependencies (run once after checkout)
+    dir: editors/vscode
+    cmd: npm install
+
+  ext-compile:
+    desc: Compile the VS Code extension TypeScript source
+    dir: editors/vscode
+    cmd: npm run compile
+
+  ext-package:
+    desc: Package the VS Code extension into a .vsix file
+    dir: editors/vscode
+    deps: [ext-compile]
+    cmd: npm run package
+
   clean:
     desc: Remove build artifacts
     cmd: rm -f {{.BINARY}} {{.BINARY}}-*.exe {{.BINARY}}-*-linux-amd64

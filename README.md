@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.29-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.2.30-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -22,6 +22,7 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 - **Project config** — `.glint.yml` for rule suppression, severity overrides, token/URL defaults; `# glint: ignore RULE` for per-job inline suppression
 - **Graph visualization** — `glint graph` prints a terminal job tree; `glint graph pipeline` renders a GitLab CI-style SVG/PNG; `--format mermaid` emits a Mermaid flowchart; `--format html` produces a self-contained HTML file with pan/zoom and a job-detail sidebar; context flags grey out skipped jobs
 - **LSP server** — `glint lsp` starts a Language Server Protocol server over stdin/stdout; connect with any LSP client to get inline diagnostics (rule ID as code, error/warning severity) in VS Code, Neovim, Emacs, JetBrains, etc.
+- **VS Code extension** — `editors/vscode/` wraps the LSP server; inline squiggles for every glint rule directly in the editor
 
 See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules table, and [ROADMAP.md](ROADMAP.md) for planned improvements.
 
@@ -108,6 +109,27 @@ Copy [`action.yml`](action.yml) from this repository, or mirror this repo to Git
 
 The action downloads the glint Linux binary into `$RUNNER_TEMP` and runs `glint check`. Only Linux runners are supported (matches the available release binary).
 
+### VS Code extension
+
+Clone this repository and load the extension from `editors/vscode/`:
+
+```bash
+cd editors/vscode
+npm install          # install dependencies (once)
+npm run compile      # compile TypeScript → out/
+```
+
+Then in VS Code: **Run → Start Debugging** (F5) — this opens an Extension Development Host with glint diagnostics active for any `.gitlab-ci.yml` you open.
+
+Make sure `glint` is on your `PATH`, or set `glint.executablePath` in VS Code settings to the full path of the binary.
+
+To package a `.vsix` for local installation:
+
+```bash
+task ext-package     # produces glint-X.Y.Z.vsix
+code --install-extension glint-X.Y.Z.vsix
+```
+
 ## Development
 
 This project uses [Task](https://taskfile.dev) as a task runner.
@@ -122,6 +144,9 @@ task ci           # full check: vet → test → build → validate
 task fuzz         # run fuzz tests for the YAML parser (Ctrl-C to stop; FUZZ_TIME=60s to set duration)
 task changelog    # regenerate CHANGELOG.md from git history via git-cliff
 task changelog-next  # preview unreleased section (dry-run, no file written)
+task ext-install     # install VS Code extension npm dependencies
+task ext-compile     # compile the VS Code extension TypeScript source
+task ext-package     # package the VS Code extension as a .vsix
 task build-windows  # cross-compile for Windows x64 (requires a tagged commit → glint-<tag>.exe)
 task build-linux    # cross-compile for Linux x64 (requires a tagged commit → glint-<tag>-linux-amd64)
 task clean        # remove build artifacts

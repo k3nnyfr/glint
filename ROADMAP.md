@@ -98,7 +98,7 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - [x] **GitHub Actions action** — shipped v0.2.28; `action.yml` composite action downloads the glint Linux binary and runs `glint check`; mirror to GitHub as `k3nny/glint` to reference as `uses: k3nny/glint@v0.2.28`
 - [x] **Pre-commit hook** — shipped v0.2.28; `.pre-commit-hooks.yaml` defines `language: golang` hook; pre-commit builds glint from source on first run and re-runs on staged `.gitlab-ci.yml` changes
 - [x] **LSP server** — shipped v0.2.29; `glint lsp` runs a JSON-RPC 2.0 LSP server over stdin/stdout; `textDocument/didOpen`, `didChange`, `didSave`, `didClose` all publish diagnostics; rule IDs appear as the diagnostic `code`; include resolution is best-effort using env-var token and default cache dir
-- [ ] **VS Code extension** — thin wrapper around the LSP server with syntax highlighting for `.gitlab-ci.yml`
+- [x] **VS Code extension** — shipped v0.2.30; `editors/vscode/` TypeScript extension wraps `glint lsp` via `vscode-languageclient`; activates on YAML files and restricts LSP processing to `**/.gitlab-ci.yml`; configurable binary path via `glint.executablePath`; build with `task ext-compile`, package with `task ext-package`
 
 ---
 

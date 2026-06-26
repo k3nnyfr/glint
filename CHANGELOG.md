@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.2.30] - 2026-06-26
+
+### Added
+
+- **VS Code extension** (`editors/vscode/`) — TypeScript extension that starts `glint lsp` as a language server and connects to it via `vscode-languageclient`. Activates on YAML files; the `documentSelector` restricts LSP processing to `**/.gitlab-ci.yml` so other YAML files are unaffected. Inline error/warning squiggles appear on every save or edit. The `glint.executablePath` setting controls the binary path (default: `glint` on `PATH`). Build: `task ext-compile`; package as `.vsix`: `task ext-package`.
+
 ## [0.2.29] - 2026-06-26
 
 ### Added

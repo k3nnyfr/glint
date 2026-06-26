@@ -1,0 +1,56 @@
+{
+  "name": "glint",
+  "displayName": "glint — GitLab CI Linter",
+  "description": "Inline diagnostics for .gitlab-ci.yml pipelines powered by the glint language server",
+  "version": "0.2.29",
+  "publisher": "k3nny",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://git.k3nny.fr/k3nny/glint"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "keywords": [
+    "gitlab",
+    "ci",
+    "yaml",
+    "lint",
+    "pipeline"
+  ],
+  "activationEvents": [
+    "onLanguage:yaml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "glint",
+      "properties": {
+        "glint.executablePath": {
+          "type": "string",
+          "default": "glint",
+          "markdownDescription": "Path to the `glint` binary. Leave as `glint` if it is on your `PATH`, or set an absolute path (e.g. `/usr/local/bin/glint`)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc --watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.82.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}
