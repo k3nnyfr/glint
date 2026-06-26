@@ -1250,3 +1250,31 @@ func TestIsSuppressed(t *testing.T) {
 	if !isSuppressed("all-job", "GL042", suppressions) { t.Error("wildcard should suppress") }
 	if isSuppressed("unknown-job", "GL001", suppressions) { t.Error("unknown job: not suppressed") }
 }
+
+func TestDetectGitBranch(t *testing.T) {
+	orig := gitBranchInDir
+	t.Cleanup(func() { gitBranchInDir = orig })
+
+	tests := []struct {
+		name    string
+		output  string
+		err     error
+		want    string
+	}{
+		{"normal branch", "main\n", nil, "main"},
+		{"branch with trailing newline", "feature/my-branch\n", nil, "feature/my-branch"},
+		{"detached HEAD", "HEAD\n", nil, ""},
+		{"git error (not a repo)", "", errors.New("exit 128"), ""},
+		{"empty output", "\n", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gitBranchInDir = func(_ string) ([]byte, error) {
+				return []byte(tt.output), tt.err
+			}
+			if got := detectGitBranch("."); got != tt.want {
+				t.Errorf("detectGitBranch() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

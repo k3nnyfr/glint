@@ -44,6 +44,29 @@ var execCommandOutput = func(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).Output()
 }
 
+// gitBranchInDir is a variable so tests can mock branch detection.
+var gitBranchInDir = func(dir string) ([]byte, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	return cmd.Output()
+}
+
+// detectGitBranch returns the current git branch name by running
+// "git rev-parse --abbrev-ref HEAD" in dir. Returns "" when dir is not
+// inside a git repository, when the repo is in detached-HEAD state, or
+// when git is not available.
+func detectGitBranch(dir string) string {
+	out, err := gitBranchInDir(dir)
+	if err != nil {
+		return ""
+	}
+	b := strings.TrimSpace(string(out))
+	if b == "" || b == "HEAD" {
+		return ""
+	}
+	return b
+}
+
 // gitDiffFiles runs "git diff --name-only <ref>" and returns the list of changed
 // file paths. Returns nil + error when the command fails (e.g. not in a git repo
 // or the ref doesn't exist).
@@ -232,8 +255,10 @@ Options:
           Print help
 
 Note: when none of --branch, --tag, --source, or --var are given, glint
-defaults to --branch main --source push so that rules:if: expressions are
-always evaluated.
+detects the current git branch automatically and uses it as the default
+(falling back to 'main' when not inside a git repository or in detached-HEAD
+state). --source defaults to 'push' so that rules:if: expressions are always
+evaluated.
 
 Examples:
   glint check .gitlab-ci.yml
@@ -260,12 +285,6 @@ Examples:
 	}
 	_ = fs.Parse(args)
 
-	// Apply implicit defaults only in single-context mode when no flags are given.
-	if len(contexts) == 0 && *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
-		*branch = "main"
-		*source = "push"
-	}
-
 	validFormats := map[string]bool{
 		"text": true, "json": true, "sarif": true, "junit": true, "github": true,
 	}
@@ -282,6 +301,17 @@ Examples:
 	}
 	path := fs.Arg(0)
 	rootDir := filepath.Dir(filepath.Clean(path))
+
+	// Apply implicit defaults only in single-context mode when no flags are given.
+	// Prefer the actual git branch of the repository; fall back to "main".
+	if len(contexts) == 0 && *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
+		if detected := detectGitBranch(rootDir); detected != "" {
+			*branch = detected
+		} else {
+			*branch = "main"
+		}
+		*source = "push"
+	}
 
 	// Load project config (.glint.yml), searching from the pipeline directory
 	// up to the git root.
@@ -586,8 +616,10 @@ Options:
           Print help
 
 Note: when none of --branch, --tag, --source, or --var are given, glint
-defaults to --branch main --source push so that rules:if: expressions are
-always evaluated.
+detects the current git branch automatically and uses it as the default
+(falling back to 'main' when not inside a git repository or in detached-HEAD
+state). --source defaults to 'push' so that rules:if: expressions are always
+evaluated.
 
 Examples:
   glint graph .gitlab-ci.yml
@@ -618,12 +650,6 @@ Examples:
 	changesFrom := fs.String("changes-from", "", "git ref to diff against for rules:changes: evaluation (e.g. HEAD~1, origin/main)")
 	_ = fs.Parse(args)
 
-	// Apply implicit defaults when no context flag is given at all.
-	if *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
-		*branch = "main"
-		*source = "push"
-	}
-
 	if fs.NArg() != 1 {
 		fs.Usage()
 		exit(2)
@@ -631,6 +657,17 @@ Examples:
 	}
 	path := fs.Arg(0)
 	rootDir := filepath.Dir(filepath.Clean(path))
+
+	// Apply implicit defaults when no context flag is given at all.
+	// Prefer the actual git branch of the repository; fall back to "main".
+	if *branch == "" && *tag == "" && *source == "" && len(vars) == 0 {
+		if detected := detectGitBranch(rootDir); detected != "" {
+			*branch = detected
+		} else {
+			*branch = "main"
+		}
+		*source = "push"
+	}
 
 	glintCfg, cfgErr := config.Load(rootDir)
 	if cfgErr != nil {
