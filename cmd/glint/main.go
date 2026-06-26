@@ -181,6 +181,12 @@ Options:
           having no token). Implies the default cache dir (~/.cache/glint) when
           --cache-dir is not set.
 
+      --proxy <URL>
+          HTTP proxy URL for remote includes and GitLab API calls
+          (e.g. http://proxy:8080). Overrides system proxy env vars
+          (HTTP_PROXY / HTTPS_PROXY). Also configurable via proxy: in
+          .glint.yml.
+
       --branch <NAME>
           Simulate a branch push. Populates: CI_COMMIT_BRANCH,
           CI_COMMIT_REF_NAME, CI_COMMIT_REF_SLUG, CI_PIPELINE_SOURCE=push.
@@ -244,10 +250,12 @@ Examples:
   glint check --branch main --var DEPLOY_ENV=production .gitlab-ci.yml
   glint check --cache-dir ~/.cache/glint .gitlab-ci.yml
   glint check --offline --cache-dir ~/.cache/glint .gitlab-ci.yml
+  glint check --no-warn .gitlab-ci.yml
   glint check --changes src/main.go --changes Dockerfile .gitlab-ci.yml
   glint check --changes-from origin/main .gitlab-ci.yml
   glint check --context branch=main --context branch=develop .gitlab-ci.yml
   glint check --context branch=main --context tag=v1.0.0 --context source=schedule .gitlab-ci.yml
+  glint check --proxy http://proxy.example.com:8080 .gitlab-ci.yml
 `)
 	}
 	_ = fs.Parse(args)
@@ -522,6 +530,22 @@ Options:
           GitLab instance URL.
           [env: CI_SERVER_URL | GITLAB_URL] [default: https://gitlab.com]
 
+      --cache-dir <DIR>
+          Cache fetched remote templates (project: and component: includes) in
+          DIR. The directory is created on first use. Subsequent runs read from
+          cache first, avoiding repeated network calls.
+
+      --offline
+          Do not make any network calls. All remote includes must already be
+          present in --cache-dir; missing entries emit a warning. Implies the
+          default cache dir (~/.cache/glint) when --cache-dir is not set.
+
+      --proxy <URL>
+          HTTP proxy URL for remote includes and GitLab API calls
+          (e.g. http://proxy:8080). Overrides system proxy env vars
+          (HTTP_PROXY / HTTPS_PROXY). Also configurable via proxy: in
+          .glint.yml.
+
       --branch <NAME>
           Simulate a branch push. Jobs in tree output are annotated with their
           evaluated state ([skipped] or [manual]; no tag means active).
@@ -577,6 +601,8 @@ Examples:
   glint graph pipeline --out /tmp/graphs .gitlab-ci.yml
   glint graph pipeline --format mermaid .gitlab-ci.yml
   glint graph pipeline --format html .gitlab-ci.yml
+  glint graph tree --no-skipped --branch main .gitlab-ci.yml
+  glint graph pipeline --no-skipped --branch develop .gitlab-ci.yml
   glint graph all .gitlab-ci.yml > includes.mmd
 `)
 	}
