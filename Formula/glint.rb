@@ -1,7 +1,7 @@
 class Glint < Formula
   desc "Local linter and validator for .gitlab-ci.yml pipelines"
   homepage "https://git.k3nny.fr/k3nny/glint"
-  url "https://git.k3nny.fr/k3nny/glint/archive/v0.3.1.tar.gz"
+  url "https://git.k3nny.fr/k3nny/glint/archive/v0.4.0.tar.gz"
   # Update sha256 on each release: sha256sum glint-vX.Y.Z.tar.gz
   sha256 ""
   license "Apache-2.0"

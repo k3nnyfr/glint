@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.4.0] - 2026-06-26
+
+### Added
+
+- **Git branch auto-detection** — `glint check` and `glint graph` now run `git rev-parse --abbrev-ref HEAD` in the pipeline file's directory to determine the current branch when no `--branch`/`--tag`/`--source`/`--var` flags are given. Falls back to `main` when not inside a git repository or in detached-HEAD state (e.g. CI runners).
+
+- **GitLab predefined variable injection** — two categories of predefined variables are now present in the simulation context automatically:
+  - `CI=true` and `GITLAB_CI=true` are injected for every non-empty context, so expressions like `$CI == "true"` evaluate correctly without `--var`.
+  - MR-specific variables (`CI_MERGE_REQUEST_IID`, `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME`, `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`, and four others) are injected as placeholders when `--source merge_request_event` is given. `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME` is derived from `--branch` when provided. All injected defaults can be overridden with `--var`.
+
+- **Multi-platform release binaries** — `task build-release` now builds for all five platforms at once: Linux amd64, Linux arm64, macOS Intel, macOS Apple Silicon, Windows x86-64. Individual targets: `task build-linux-amd64`, `task build-linux-arm64`, `task build-darwin-amd64`, `task build-darwin-arm64`, `task build-windows`.
+
+- **Homebrew formula** — `Formula/glint.rb` is a source-build Homebrew formula. Set up a tap at `k3nny/homebrew-glint` on GitHub, then install with `brew tap k3nny/glint https://github.com/k3nny/homebrew-glint && brew install glint`.
+
+- **`INSTALL.md`** — installation guide covering pre-built binary download for all platforms, Homebrew tap, `go install`, and build-from-source with `/usr/local/bin` placement.
+
 ## [0.3.1] - 2026-06-26
 
 ### Changed

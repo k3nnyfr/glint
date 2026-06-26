@@ -135,3 +135,8 @@ The SVG renderer and terminal tree cover the basic layout. These would bring it 
 - [x] **Fuzz testing** — shipped v0.2.27; `FuzzParseBytes` and `FuzzSanitizeYAMLEscapes` in `internal/model/fuzz_test.go`; seeds run as regular tests in CI; `task fuzz` runs them continuously (default 30 s)
 - [x] **`glint check --no-warn`** — shipped v0.3.0; discards all warning findings before output and exit-code calculation; mixed pipelines (errors + warnings) still exit 2 but only errors are printed; warnings-only pipelines exit 0
 - [x] **Exit codes 2 / 10** *(breaking)* — shipped v0.3.0; `glint check` exits `2` when errors are present (previously `1`) and `10` when findings contain only warnings; exit `0` for clean
+- [x] **Git branch auto-detection** — shipped v0.4.0; when no context flags are given, `glint check` and `glint graph` run `git rev-parse --abbrev-ref HEAD` in the pipeline file's directory and use the result as the default branch (falls back to `main`)
+- [x] **GitLab predefined variable injection** — shipped v0.4.0; `CI=true` and `GITLAB_CI=true` always present in a non-empty context; MR-specific variables injected as placeholders when `--source merge_request_event`; all overridable via `--var`
+- [x] **Multi-platform release binaries** — shipped v0.4.0; `task build-release` builds Linux amd64/arm64, macOS Intel/Apple Silicon, and Windows amd64 in one shot
+- [x] **Homebrew formula** — shipped v0.4.0; `Formula/glint.rb` source-build formula; tap at `k3nny/homebrew-glint`
+- [x] **`INSTALL.md`** — shipped v0.4.0; installation guide for all platforms and methods

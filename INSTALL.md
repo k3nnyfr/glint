@@ -40,7 +40,7 @@ Pre-built binaries are attached to each [release](https://git.k3nny.fr/k3nny/gli
 ### Linux (amd64)
 
 ```bash
-VERSION=v0.3.1
+VERSION=v0.4.0
 curl -Lo glint https://git.k3nny.fr/k3nny/glint/releases/download/${VERSION}/glint-${VERSION}-linux-amd64
 chmod +x glint
 sudo mv glint /usr/local/bin/
@@ -49,7 +49,7 @@ sudo mv glint /usr/local/bin/
 ### Linux (ARM64 — Raspberry Pi 4, AWS Graviton, …)
 
 ```bash
-VERSION=v0.3.1
+VERSION=v0.4.0
 curl -Lo glint https://git.k3nny.fr/k3nny/glint/releases/download/${VERSION}/glint-${VERSION}-linux-arm64
 chmod +x glint
 sudo mv glint /usr/local/bin/
@@ -58,7 +58,7 @@ sudo mv glint /usr/local/bin/
 ### macOS (Apple Silicon — M1/M2/M3)
 
 ```bash
-VERSION=v0.3.1
+VERSION=v0.4.0
 curl -Lo glint https://git.k3nny.fr/k3nny/glint/releases/download/${VERSION}/glint-${VERSION}-darwin-arm64
 chmod +x glint
 sudo mv glint /usr/local/bin/
@@ -67,7 +67,7 @@ sudo mv glint /usr/local/bin/
 ### macOS (Intel)
 
 ```bash
-VERSION=v0.3.1
+VERSION=v0.4.0
 curl -Lo glint https://git.k3nny.fr/k3nny/glint/releases/download/${VERSION}/glint-${VERSION}-darwin-amd64
 chmod +x glint
 sudo mv glint /usr/local/bin/
