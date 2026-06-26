@@ -258,7 +258,10 @@ Note: when none of --branch, --tag, --source, or --var are given, glint
 detects the current git branch automatically and uses it as the default
 (falling back to 'main' when not inside a git repository or in detached-HEAD
 state). --source defaults to 'push' so that rules:if: expressions are always
-evaluated.
+evaluated. GitLab's always-available predefined variables (CI=true,
+GITLAB_CI=true) are injected automatically; MR-specific variables
+(CI_MERGE_REQUEST_IID, CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, …) are injected
+when --source merge_request_event is given. Override any with --var.
 
 Examples:
   glint check .gitlab-ci.yml
@@ -269,6 +272,8 @@ Examples:
   glint check --branch develop .gitlab-ci.yml
   glint check --tag v1.0.0 .gitlab-ci.yml
   glint check --source merge_request_event .gitlab-ci.yml
+  glint check --source merge_request_event --branch feature/my-branch .gitlab-ci.yml
+  glint check --source merge_request_event --var CI_MERGE_REQUEST_IID=42 .gitlab-ci.yml
   glint check --list-vars .gitlab-ci.yml
   GITLAB_TOKEN=glpat-xxxx glint check .gitlab-ci.yml
   glint check --token glpat-xxxx --gitlab-url https://gitlab.example.com .gitlab-ci.yml
@@ -619,7 +624,10 @@ Note: when none of --branch, --tag, --source, or --var are given, glint
 detects the current git branch automatically and uses it as the default
 (falling back to 'main' when not inside a git repository or in detached-HEAD
 state). --source defaults to 'push' so that rules:if: expressions are always
-evaluated.
+evaluated. GitLab's always-available predefined variables (CI=true,
+GITLAB_CI=true) are injected automatically; MR-specific variables
+(CI_MERGE_REQUEST_IID, CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, …) are injected
+when --source merge_request_event is given. Override any with --var.
 
 Examples:
   glint graph .gitlab-ci.yml

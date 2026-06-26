@@ -78,6 +78,66 @@ func TestNew_DefaultBranch(t *testing.T) {
 	}
 }
 
+func TestNew_PredefinedAlwaysVars(t *testing.T) {
+	ctx := New("main", "", "", nil)
+	if ctx.Get("CI") != "true" {
+		t.Errorf("CI should be 'true', got %q", ctx.Get("CI"))
+	}
+	if ctx.Get("GITLAB_CI") != "true" {
+		t.Errorf("GITLAB_CI should be 'true', got %q", ctx.Get("GITLAB_CI"))
+	}
+}
+
+func TestNew_PredefinedAlwaysVars_EmptyContext(t *testing.T) {
+	// Always-vars must NOT be injected when the context is empty (no flags).
+	ctx := New("", "", "", nil)
+	if ctx.Get("CI") != "" {
+		t.Errorf("CI should be empty in empty context, got %q", ctx.Get("CI"))
+	}
+}
+
+func TestNew_PredefinedAlwaysVars_OverridableByVar(t *testing.T) {
+	ctx := New("main", "", "", []string{"CI=false"})
+	if ctx.Get("CI") != "false" {
+		t.Errorf("--var should override CI, got %q", ctx.Get("CI"))
+	}
+}
+
+func TestNew_PredefinedAlwaysVars_OverridableByInject(t *testing.T) {
+	ctx := New("main", "", "", nil)
+	ctx.Inject("CI", "custom")
+	if ctx.Get("CI") != "custom" {
+		t.Errorf("Inject should override non-pinned CI, got %q", ctx.Get("CI"))
+	}
+}
+
+func TestNew_MRVars(t *testing.T) {
+	ctx := New("feature/my-branch", "", "merge_request_event", nil)
+	if ctx.Get("CI_MERGE_REQUEST_IID") != "1" {
+		t.Errorf("CI_MERGE_REQUEST_IID should be '1', got %q", ctx.Get("CI_MERGE_REQUEST_IID"))
+	}
+	if ctx.Get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME") != "feature/my-branch" {
+		t.Errorf("source branch should match --branch, got %q", ctx.Get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"))
+	}
+	if ctx.Get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME") != "main" {
+		t.Errorf("target branch should be 'main', got %q", ctx.Get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"))
+	}
+}
+
+func TestNew_MRVars_NotInjectedForNonMR(t *testing.T) {
+	ctx := New("main", "", "push", nil)
+	if ctx.Get("CI_MERGE_REQUEST_IID") != "" {
+		t.Errorf("CI_MERGE_REQUEST_IID should be empty for push pipeline, got %q", ctx.Get("CI_MERGE_REQUEST_IID"))
+	}
+}
+
+func TestNew_MRVars_OverridableByVar(t *testing.T) {
+	ctx := New("", "", "merge_request_event", []string{"CI_MERGE_REQUEST_IID=42"})
+	if ctx.Get("CI_MERGE_REQUEST_IID") != "42" {
+		t.Errorf("--var should override CI_MERGE_REQUEST_IID, got %q", ctx.Get("CI_MERGE_REQUEST_IID"))
+	}
+}
+
 func TestInject(t *testing.T) {
 	ctx := New("main", "", "", nil)
 	// pinned var should not be overwritten

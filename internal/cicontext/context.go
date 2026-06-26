@@ -14,6 +14,32 @@ type Context struct {
 	changedFiles []string        // nil = not provided (permissive); non-nil = known set of changed files
 }
 
+// gitlabAlwaysVars are GitLab predefined variables that are constant across
+// every pipeline, instance, and project. Injected at the lowest priority so
+// that pipeline variables: blocks and --var overrides can still win.
+var gitlabAlwaysVars = map[string]string{
+	"CI":        "true",
+	"GITLAB_CI": "true",
+}
+
+// gitlabMRVars are predefined variables GitLab injects only for
+// CI_PIPELINE_SOURCE=merge_request_event pipelines. Placeholder values are
+// used so that rules:if: expressions that gate on MR context evaluate
+// correctly. All can be overridden with --var.
+//
+// CI_MERGE_REQUEST_SOURCE_BRANCH_NAME is left empty here and filled from
+// CI_COMMIT_BRANCH (the --branch flag) when available.
+var gitlabMRVars = map[string]string{
+	"CI_MERGE_REQUEST_ID":                  "1",
+	"CI_MERGE_REQUEST_IID":                 "1",
+	"CI_MERGE_REQUEST_SOURCE_BRANCH_NAME":  "",
+	"CI_MERGE_REQUEST_TARGET_BRANCH_NAME":  "main",
+	"CI_MERGE_REQUEST_PROJECT_PATH":        "namespace/project",
+	"CI_MERGE_REQUEST_TITLE":               "Draft: placeholder",
+	"CI_MERGE_REQUEST_LABELS":              "",
+	"CI_OPEN_MERGE_REQUESTS":               "namespace/project!1",
+}
+
 // New builds a Context from high-level shortcut values and optional KEY=VALUE
 // overrides. Predefined CI variables are derived from the shortcuts so callers
 // do not need to know their exact names.
@@ -21,15 +47,18 @@ type Context struct {
 // Returns an empty Context (IsEmpty() == true) when all inputs are zero values,
 // preserving the existing linting behaviour when no context flags are given.
 //
-// Override priority (highest wins): extraVars > branch/tag/source shortcuts.
-// Both shortcut-derived and extraVar variables are pinned — they will not be
-// overwritten by Inject (used for pipeline-level and workflow-rule variables).
+// Override priority (highest wins): extraVars > branch/tag/source shortcuts >
+// pipeline variables (via Inject) > GitLab predefined defaults.
 func New(branch, tag, source string, extraVars []string) *Context {
 	if branch == "" && tag == "" && source == "" && len(extraVars) == 0 {
 		return &Context{}
 	}
 
-	vars := make(map[string]string)
+	// Seed with always-available GitLab predefined variables at lowest priority.
+	vars := make(map[string]string, len(gitlabAlwaysVars)+8)
+	for k, v := range gitlabAlwaysVars {
+		vars[k] = v
+	}
 	pinned := make(map[string]bool)
 
 	pin := func(k, v string) {
@@ -60,6 +89,22 @@ func New(branch, tag, source string, extraVars []string) *Context {
 	}
 	if _, ok := vars["CI_DEFAULT_BRANCH"]; !ok {
 		vars["CI_DEFAULT_BRANCH"] = "main"
+	}
+
+	// For MR pipelines, inject placeholder values for the predefined MR
+	// variables so that rules:if: expressions like '$CI_MERGE_REQUEST_IID'
+	// evaluate as non-empty (truthy). These are non-pinned so --var overrides
+	// them and pipeline variables: can also override via Inject.
+	if source == "merge_request_event" {
+		for k, v := range gitlabMRVars {
+			if !pinned[k] {
+				vars[k] = v
+			}
+		}
+		// Derive source branch from --branch when available.
+		if branch != "" && vars["CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"] == "" {
+			vars["CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"] = branch
+		}
 	}
 
 	// KEY=VALUE overrides win over shortcuts and everything else.
