@@ -1,5 +1,7 @@
 package model
 
+import "gopkg.in/yaml.v3"
+
 // Pipeline represents the top-level structure of a .gitlab-ci.yml file.
 // Unknown top-level keys are collected into Jobs.
 type Pipeline struct {
@@ -41,7 +43,9 @@ type DefaultConfig struct {
 }
 
 type Workflow struct {
-	Rules []Rule `yaml:"rules"`
+	Name       string `yaml:"name"`
+	AutoCancel any    `yaml:"auto_cancel"`
+	Rules      Rules  `yaml:"rules"`
 }
 
 type Job struct {
@@ -57,7 +61,7 @@ type Job struct {
 	Image        any      `yaml:"image"`
 	Services     []any    `yaml:"services"`
 	Variables    map[string]any `yaml:"variables"` // string or {value,description,options} map
-	Rules        []Rule         `yaml:"rules"`
+	Rules        Rules          `yaml:"rules"`
 	Only         any      `yaml:"only"`
 	Except       any      `yaml:"except"`
 	Needs        []any    `yaml:"needs"`
@@ -85,12 +89,71 @@ type Job struct {
 }
 
 type Rule struct {
-	If        string         `yaml:"if"`
-	When      string         `yaml:"when"`
-	Changes   any            `yaml:"changes"`   // []string or {paths,compare_to} map
-	Exists    any            `yaml:"exists"`    // []string or map form
-	Variables map[string]any `yaml:"variables"` // set/override variables when rule matches (GitLab CI 15.0+)
-	Needs     []any          `yaml:"needs"`     // override needs: when this rule matches (GitLab CI 16.4+)
+	If           string         `yaml:"if"`
+	When         string         `yaml:"when"`
+	Changes      any            `yaml:"changes"`       // []string or {paths,compare_to} map
+	Exists       any            `yaml:"exists"`        // []string or map form
+	Variables    map[string]any `yaml:"variables"`     // set/override variables when rule matches (GitLab CI 15.0+)
+	Needs        []any          `yaml:"needs"`         // override needs: when this rule matches (GitLab CI 16.4+)
+	AllowFailure any            `yaml:"allow_failure"` // bool or {exit_codes:} map (GitLab CI 15.0+)
+	GroupID      int            `yaml:"-"`             // >0 means AND-group; set by Rules.UnmarshalYAML
+}
+
+// Rules is a list of Rule entries that also supports GitLab CI's nested-array
+// form where each outer entry can itself be a sequence of rules (AND-group).
+// Rules with the same non-zero GroupID form an AND-group: all conditions must
+// match for the group to fire. GroupID == 0 means standalone rule.
+type Rules []Rule
+
+func (r *Rules) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.SequenceNode {
+		return nil
+	}
+	nextGroup := 1
+	for _, item := range value.Content {
+		switch item.Kind {
+		case yaml.MappingNode:
+			var rule Rule // GroupID stays 0 (standalone)
+			if err := item.Decode(&rule); err != nil {
+				return err
+			}
+			*r = append(*r, rule)
+		case yaml.SequenceNode:
+			// AND-group: assign a shared GroupID so the evaluator can apply AND logic.
+			var group []Rule
+			if err := item.Decode(&group); err != nil {
+				return err
+			}
+			for i := range group {
+				group[i].GroupID = nextGroup
+			}
+			*r = append(*r, group...)
+			nextGroup++
+		}
+	}
+	return nil
+}
+
+// Groups returns the rules partitioned into AND-groups. Standalone rules
+// (GroupID == 0) form single-element groups; rules with a shared GroupID form
+// one group where all conditions must match.
+func (r Rules) Groups() [][]Rule {
+	var groups [][]Rule
+	seen := map[int]int{} // groupID → index in groups
+	for _, rule := range r {
+		if rule.GroupID == 0 {
+			groups = append(groups, []Rule{rule})
+		} else {
+			idx, ok := seen[rule.GroupID]
+			if !ok {
+				idx = len(groups)
+				seen[rule.GroupID] = idx
+				groups = append(groups, nil)
+			}
+			groups[idx] = append(groups[idx], rule)
+		}
+	}
+	return groups
 }
 
 // ReservedKeys are top-level GitLab CI keys that are NOT job definitions.

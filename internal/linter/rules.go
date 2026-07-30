@@ -163,4 +163,19 @@ const (
 	// CI templates fetched over HTTP are transmitted in cleartext and can be
 	// intercepted or modified in transit.
 	RuleInsecureRemoteInclude = "GL045"
+
+	// GL046: image: or services[n]: pull_policy: contains an unrecognised value.
+	// Valid values: always, if-not-present, never (or a list of those values).
+	RuleInvalidPullPolicy = "GL046"
+
+	// GL047: a variable declared with options: has a default value: that is not
+	// listed in the options list. GitLab rejects the pipeline at creation time.
+	RuleVariableValueNotInOptions = "GL047"
+
+	// GL048: trigger.forward: contains an unrecognised key. Only
+	// pipeline_variables and yaml_variables are valid.
+	RuleInvalidTriggerForward = "GL048"
+
+	// GL049: rules[n].allow_failure: is not a boolean or a map with exit_codes:.
+	RuleInvalidRulesAllowFailure = "GL049"
 )

@@ -2,6 +2,13 @@ stages:
   - build
   - test
 
+variables:
+  DEPLOY_ENV:
+    value: canary             # ERROR: not listed in options
+    options:
+      - staging
+      - production
+
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
@@ -126,3 +133,50 @@ bad-rule-when-job:
   rules:
     - if: '$CI_MERGE_REQUEST_ID'
       when: sometimes         # ERROR: invalid rules[0].when
+
+bad-pull-policy-job:
+  stage: build
+  script:
+    - echo hello
+  image:
+    name: alpine
+    pull_policy: on-demand    # ERROR: invalid pull_policy value
+
+bad-pull-policy-service-job:
+  stage: build
+  script:
+    - echo hello
+  services:
+    - name: postgres:15
+      pull_policy: lazy       # ERROR: invalid service pull_policy value
+
+bad-trigger-forward-job:
+  trigger:
+    project: mygroup/myproject
+    forward:
+      all_variables: true     # ERROR: unrecognised trigger.forward key
+
+bad-trigger-forward-key2-job:
+  trigger:
+    include:
+      - artifact: child.yml
+        job: build
+    forward:
+      inherit: false          # ERROR: unrecognised trigger.forward key
+
+bad-rules-allow-failure-job:
+  stage: build
+  script:
+    - echo hello
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      allow_failure: maybe    # ERROR: invalid rules[0].allow_failure value
+
+bad-rules-allow-failure-map-job:
+  stage: build
+  script:
+    - echo hello
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      allow_failure:
+        codes: [1]            # ERROR: map missing exit_codes key

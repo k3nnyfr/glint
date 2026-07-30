@@ -867,4 +867,86 @@ test:
 		Fix: `include:
   - remote: https://ci-templates.example.com/build.yml`,
 	},
+
+	RuleInvalidPullPolicy: {
+		Title:    "'pull_policy:' has invalid value",
+		Severity: Error,
+		Description: "'image.pull_policy' and 'services[n].pull_policy' must be one of " +
+			"'always', 'if-not-present', or 'never', or a list of those values. " +
+			"Any other string is rejected by GitLab at pipeline creation time.",
+		Example: `my-job:
+  image:
+    name: alpine
+    pull_policy: on-demand   # not a valid value
+  script: echo hi`,
+		Fix: `my-job:
+  image:
+    name: alpine
+    pull_policy: if-not-present
+  script: echo hi`,
+	},
+
+	RuleVariableValueNotInOptions: {
+		Title:    "variable default value not listed in 'options'",
+		Severity: Error,
+		Description: "A pipeline variable declares an 'options' list that constrains what " +
+			"values can be chosen when triggering the pipeline manually. If the 'value' " +
+			"(the default) is not in that list, GitLab rejects the pipeline at creation " +
+			"time with a validation error.",
+		Example: `variables:
+  DEPLOY_ENV:
+    value: staging
+    options:
+      - production
+      - review    # 'staging' is missing from the list`,
+		Fix: `variables:
+  DEPLOY_ENV:
+    value: staging
+    options:
+      - staging
+      - production
+      - review`,
+	},
+
+	RuleInvalidTriggerForward: {
+		Title:    "'trigger.forward:' has unrecognised key",
+		Severity: Error,
+		Description: "'trigger.forward' controls which variables are forwarded to the " +
+			"downstream pipeline. Only 'pipeline_variables' and 'yaml_variables' are " +
+			"valid keys. Any other key is silently ignored by some GitLab versions and " +
+			"rejected by others.",
+		Example: `deploy:
+  trigger:
+    include:
+      - artifact: pipeline.yml
+        job: build
+    forward:
+      all_variables: true   # not a valid key`,
+		Fix: `deploy:
+  trigger:
+    include:
+      - artifact: pipeline.yml
+        job: build
+    forward:
+      pipeline_variables: true
+      yaml_variables: true`,
+	},
+
+	RuleInvalidRulesAllowFailure: {
+		Title:    "'rules[n].allow_failure:' invalid value",
+		Severity: Error,
+		Description: "'allow_failure' inside a 'rules:' entry (GitLab CI 15.0+) must be " +
+			"a boolean (true/false) or a map with an 'exit_codes' key. This overrides " +
+			"the job-level 'allow_failure' when the rule matches.",
+		Example: `my-job:
+  script: ./test.sh
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      allow_failure: maybe   # must be true/false or a map`,
+		Fix: `my-job:
+  script: ./test.sh
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      allow_failure: true`,
+	},
 }

@@ -117,6 +117,8 @@ tasks:
         ignore_error: false
       - cmd: ./{{.BINARY}} check testdata/rules_needs_invalid.yml
         ignore_error: true
+      - cmd: ./{{.BINARY}} check testdata/nested_rules.yml
+        ignore_error: true
       - cmd: ./{{.BINARY}} explain GL007
         ignore_error: false
       - cmd: ./{{.BINARY}} explain gl042

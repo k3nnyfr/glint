@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.4.1-blue.svg" alt="Release"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v0.5.0-blue.svg" alt="Release"></a>
 </p>
 
 > **Disclaimer:** This tool was built through iterative AI-assisted development with [Claude](https://claude.ai). It is experimental, incomplete, and not intended for production use. Coverage of GitLab CI keywords is best-effort and may lag behind GitLab's evolving spec. Use it at your own discretion — no correctness guarantees are made. Contributions and bug reports are welcome.
@@ -15,7 +15,7 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 
 ## What it does
 
-- **Lints** — 45 rules covering pipeline structure, keyword constraints, `needs:`/`dependencies:` graphs, expression reachability, and deprecations (GL001–GL045); run `glint explain <ID>` for any rule
+- **Lints** — 49 rules covering pipeline structure, keyword constraints, `needs:`/`dependencies:` graphs, expression reachability, and deprecations (GL001–GL049); run `glint explain <ID>` for any rule
 - **Resolves includes** — local files, HTTPS URLs, GitLab project templates, and CI/CD Catalog components, with offline cache support and HTTP proxy support (`--proxy` flag or `proxy:` in `.glint.yml`)
 - **Renders merged pipeline** — `glint render` resolves all includes and `extends:` chains into a single flat YAML file, matching what GitLab CI actually processes
 - **Simulates context** — `--branch`, `--tag`, `--source` flags evaluate `rules:if:` and `only`/`except` to show which jobs would be active, manual, or skipped; `--context branch=main --context branch=develop` prints a multi-column comparison table across multiple contexts in one run

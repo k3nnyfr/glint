@@ -114,6 +114,8 @@ func checkJobKeywords(name string, job model.Job) []Finding {
 	findings = append(findings, checkSecrets(name, job)...)
 	findings = append(findings, checkPagesKeyword(name, job)...)
 	findings = append(findings, checkCacheKeyFiles(name, job)...)
+	findings = append(findings, checkPullPolicy(name, job)...)
+	findings = append(findings, checkRulesAllowFailure(name, job)...)
 	return findings
 }
 
@@ -312,6 +314,20 @@ func checkTrigger(name string, job model.Job) []Finding {
 				Job:      name,
 				Message:  "'trigger' map must specify 'project' or 'include'",
 			})
+		}
+		// GL048: validate trigger.forward keys.
+		if fwd, ok := m["forward"].(map[string]any); ok {
+			validForwardKeys := map[string]bool{"pipeline_variables": true, "yaml_variables": true}
+			for k := range fwd {
+				if !validForwardKeys[k] {
+					findings = append(findings, Finding{
+						Severity: Error,
+						Rule:     RuleInvalidTriggerForward,
+						Job:      name,
+						Message:  fmt.Sprintf("'trigger.forward' has unrecognised key %q; valid keys: pipeline_variables, yaml_variables", k),
+					})
+				}
+			}
 		}
 	}
 	return findings
@@ -791,6 +807,85 @@ func checkPagesKeyword(name string, job model.Job) []Finding {
 		Job:      name,
 		Message:  fmt.Sprintf("'pages.publish' is %q but 'artifacts.paths' does not include it — GitLab Pages will not deploy", publishDir),
 	}}
+}
+
+// GL046: image.pull_policy and services[n].pull_policy must use recognised values.
+var validPullPolicy = map[string]bool{
+	"always": true, "if-not-present": true, "never": true,
+}
+
+func checkPullPolicy(name string, job model.Job) []Finding {
+	var findings []Finding
+	findings = append(findings, checkPullPolicyValue(name, "image", job.Image)...)
+	for i, svc := range job.Services {
+		findings = append(findings, checkPullPolicyValue(name, fmt.Sprintf("services[%d]", i), svc)...)
+	}
+	return findings
+}
+
+func checkPullPolicyValue(jobName, field string, v any) []Finding {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	pp, exists := m["pull_policy"]
+	if !exists || pp == nil {
+		return nil
+	}
+	var policies []string
+	switch x := pp.(type) {
+	case string:
+		policies = []string{x}
+	case []any:
+		for _, item := range x {
+			if s, ok := item.(string); ok {
+				policies = append(policies, s)
+			}
+		}
+	}
+	var findings []Finding
+	for _, p := range policies {
+		if !validPullPolicy[p] {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidPullPolicy,
+				Job:      jobName,
+				Message:  fmt.Sprintf("%s.pull_policy has unrecognised value %q; valid: always, if-not-present, never", field, p),
+			})
+		}
+	}
+	return findings
+}
+
+// GL049: rules[n].allow_failure must be a boolean or a map with exit_codes:.
+func checkRulesAllowFailure(name string, job model.Job) []Finding {
+	var findings []Finding
+	for i, rule := range job.Rules {
+		if rule.AllowFailure == nil {
+			continue
+		}
+		switch v := rule.AllowFailure.(type) {
+		case bool:
+			// valid
+		case map[string]any:
+			if _, ok := v["exit_codes"]; !ok {
+				findings = append(findings, Finding{
+					Severity: Error,
+					Rule:     RuleInvalidRulesAllowFailure,
+					Job:      name,
+					Message:  fmt.Sprintf("rules[%d].allow_failure map form must contain 'exit_codes'", i),
+				})
+			}
+		default:
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleInvalidRulesAllowFailure,
+				Job:      name,
+				Message:  fmt.Sprintf("rules[%d].allow_failure must be a boolean or a map with 'exit_codes'", i),
+			})
+		}
+	}
+	return findings
 }
 
 // GL041: cache.key.files must be a list of exact file paths, not glob patterns.

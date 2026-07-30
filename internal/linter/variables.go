@@ -110,7 +110,7 @@ func checkVariableRefs(p *model.Pipeline) []Finding {
 				continue
 			}
 			for _, varName := range extractIfVars(rule.If) {
-				if isPredefinedVar(varName) || pipelineVars[varName] || seen[varName] {
+				if isPredefinedVar(varName) || pipelineVars[varName] || workflowRuleVars[varName] || seen[varName] {
 					continue
 				}
 				seen[varName] = true

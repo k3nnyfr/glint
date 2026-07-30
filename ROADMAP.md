@@ -8,6 +8,7 @@ This document tracks planned improvements to `glint`. Items are grouped by theme
 
 Pass `--branch`, `--tag`, `--source`, or `--var` to `glint check` or `glint graph` to evaluate `rules:if:` expressions and `only`/`except` filters against a specific pipeline event.
 
+- [x] **`workflow.rules` AND-group semantics** — shipped v0.5.0; the `- -` nested-array rule form (AND-groups) is parsed and evaluated with correct AND logic: all conditions in a group must match for the group to fire; variables and `when:` from all matching group members are merged
 - [x] **Single-context simulation** — shipped v0.2.0; `--branch`, `--tag`, `--source`, `--var` flags on both subcommands; jobs classified as active / manual / skipped
 - [x] **`workflow:rules:variables:` propagation** — shipped post-v0.2.0; variables from the matching workflow rule entry injected into the evaluation context before job `rules:if:` expressions are evaluated
 - [x] **Expression evaluator: multi-line `if:` values** — shipped post-v0.2.0; newlines in block-scalar and folded YAML `if:` values treated as whitespace
@@ -32,6 +33,10 @@ Pass `--branch`, `--tag`, `--source`, or `--var` to `glint check` or `glint grap
 
 The current rule set covers the most common sources of broken pipelines. These are the gaps most likely to matter in practice.
 
+- [x] **`image.pull_policy` / `services[n].pull_policy` validation (GL046)** — shipped v0.5.0; validates that `pull_policy` values are one of `always`, `if-not-present`, `never`; applies to both `image:` map form and service entries; list form also checked element-by-element
+- [x] **`variables.options` default value validation (GL047)** — shipped v0.5.0; errors when a variable declares an `options:` list and its `value:` (default) is not listed; checked at pipeline level and per-job; GitLab rejects such pipelines at creation time
+- [x] **`trigger.forward` key validation (GL048)** — shipped v0.5.0; errors on unrecognised keys inside `trigger.forward:`; only `pipeline_variables` and `yaml_variables` are valid
+- [x] **`rules[n].allow_failure` validation (GL049)** — shipped v0.5.0; validates rule-level `allow_failure:` (GitLab CI 15.0+) using the same rules as job-level GL014: must be a boolean or a `{exit_codes:}` map
 - [x] **Variable reference validation (GL032)** — shipped v0.2.11; warns when a `rules:if:` expression references `$VAR` / `${VAR}` not declared anywhere in pipeline YAML; predefined GitLab namespaces (`CI_*`, `GITLAB_*`, …) exempt; variables from included files are also considered
 - [x] **`rules:if:` static reachability (GL033)** — shipped v0.2.15; warns when every rule in a job's `rules:` block has `when: never`, making the job permanently excluded from any pipeline run; no `if:` evaluation required
 - [x] **`services:` validation (GL034)** — shipped v0.2.16; map form requires `name`; `alias` must be a valid DNS label

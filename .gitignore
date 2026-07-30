@@ -16,6 +16,9 @@ coverage.txt
 # Task runner cache
 .task/
 
+# Tmp
+.tmp/
+
 # Claude Code project memory
 .claude/
 

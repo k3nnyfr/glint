@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.5.0] - 2026-07-30
+
+### Added
+
+- **Windows ARM64 build target** — `task build-windows-arm64` cross-compiles `glint-<tag>-windows-arm64.exe`; the Gitea release CI uploads it alongside the other five platform binaries.
+- **`workflow.rules` AND-group support** — the `- -` nested-array rule form (AND-groups) is now parsed and evaluated with correct AND logic: all conditions in a group must match for the group to fire; `when:` and `variables:` from all matching members are merged. Previously this form caused a YAML unmarshal crash.
+- **`workflow.name` and `workflow.auto_cancel` fields** — no longer cause a parse error when present; both are decoded into the `Workflow` struct.
+- **GL046 — `pull_policy` validation** — errors when `image.pull_policy` or `services[n].pull_policy` uses a value other than `always`, `if-not-present`, or `never`; both the string scalar and list-of-strings forms are checked.
+- **GL047 — `variables.options` default validation** — errors when a pipeline-level or job-level variable declares an `options:` list and its `value:` (default) is absent from that list; GitLab rejects such pipelines at creation time.
+- **GL048 — `trigger.forward` key validation** — errors on unrecognised keys inside `trigger.forward:`; only `pipeline_variables` and `yaml_variables` are valid.
+- **GL049 — `rules[n].allow_failure` validation** — validates rule-level `allow_failure:` (GitLab CI 15.0+): must be a boolean or a map with an `exit_codes:` key; applies the same checks as the job-level GL014.
+
+### Fixed
+
+- **GL032 false positive in workflow rules** — variables set by any workflow rule's `variables:` block are now excluded from GL032 undeclared-variable warnings when referenced in sibling workflow rule `if:` expressions; previously only pipeline-level `variables:` entries were exempt.
+
 ## [0.4.1] - 2026-06-26
 
 ### Fixed

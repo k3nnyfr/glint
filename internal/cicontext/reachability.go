@@ -42,22 +42,18 @@ func EvalWorkflow(p *model.Pipeline, ctx *Context) (bool, map[string]string) {
 		return true, nil
 	}
 	vars := ctx.Get
-	for _, rule := range p.Workflow.Rules {
-		// Workflow rules use strict evaluation: an unparseable condition is
-		// treated as no-match so later rules (with valid conditions or a
-		// bare when:) are reached. Permissive-true would cause an early rule
-		// with a complex/invalid condition to block all subsequent rules.
-		if !ruleIfMatchesStrict(rule.If, vars) {
+	// Workflow rules use strict evaluation: an unparseable condition is treated
+	// as no-match so later rules are reached. Permissive-true would cause an
+	// early rule with a complex condition to block all subsequent rules.
+	for _, group := range p.Workflow.Rules.Groups() {
+		matched, when, groupVars := evalRuleGroup(group, vars, ctx, true)
+		if !matched {
 			continue
 		}
-		if !changesMatch(rule.Changes, ctx) {
-			continue
-		}
-		when := rule.When
 		if when == "" {
 			when = "always"
 		}
-		return when != "never", ExtractStringVars(rule.Variables)
+		return when != "never", groupVars
 	}
 	return false, nil // no rule matched → pipeline does not run
 }
@@ -74,14 +70,12 @@ func EvalJob(job model.Job, ctx *Context) JobState {
 
 	// rules: takes priority over only/except.
 	if len(job.Rules) > 0 {
-		for _, rule := range job.Rules {
-			if !ruleIfMatches(rule.If, vars) {
+		for _, group := range job.Rules.Groups() {
+			matched, when, _ := evalRuleGroup(group, vars, ctx, false)
+			if !matched {
 				continue
 			}
-			if !changesMatch(rule.Changes, ctx) {
-				continue
-			}
-			return whenToState(rule.When)
+			return whenToState(when)
 		}
 		return JobSkipped // no rule matched → job is excluded
 	}
@@ -97,6 +91,35 @@ func EvalJob(job model.Job, ctx *Context) JobState {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// evalRuleGroup evaluates one rule group (one or more rules forming an AND-group).
+// All conditions in the group must match for the group to fire.
+// Returns (matched, effectiveWhen, mergedVars). When strict=true, unparseable
+// if: expressions count as no-match; when false, they count as match (permissive).
+func evalRuleGroup(group []model.Rule, vars func(string) string, ctx *Context, strict bool) (bool, string, map[string]string) {
+	for _, rule := range group {
+		var ifOk bool
+		if strict {
+			ifOk = ruleIfMatchesStrict(rule.If, vars)
+		} else {
+			ifOk = ruleIfMatches(rule.If, vars)
+		}
+		if !ifOk || !changesMatch(rule.Changes, ctx) {
+			return false, "", nil
+		}
+	}
+	merged := make(map[string]string)
+	effectiveWhen := ""
+	for _, rule := range group {
+		for k, v := range ExtractStringVars(rule.Variables) {
+			merged[k] = v
+		}
+		if rule.When != "" {
+			effectiveWhen = rule.When
+		}
+	}
+	return true, effectiveWhen, merged
+}
 
 func ruleIfMatches(ifExpr string, vars func(string) string) bool {
 	if ifExpr == "" {

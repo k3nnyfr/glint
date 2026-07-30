@@ -64,6 +64,7 @@ func Lint(p *model.Pipeline, skipped map[string]bool) []Finding {
 	findings = append(findings, checkDuplicateStages(p)...)
 	findings = append(findings, checkDefault(p)...)
 	findings = append(findings, checkWorkflow(p)...)
+	findings = append(findings, checkPipelineVariableOptions(p)...)
 	findings = append(findings, checkJobs(p)...)
 	findings = append(findings, checkNeeds(p, skipped)...)
 	findings = append(findings, checkRulesNeeds(p, skipped)...)
@@ -223,6 +224,7 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 	}
 
 	findings = append(findings, checkJobKeywords(name, job)...)
+	findings = append(findings, checkVariableOptionsForJob(name, job)...)
 
 	// Attach source location to every job-scoped finding collected above.
 	for i := range findings {
@@ -230,6 +232,55 @@ func checkJob(name string, job model.Job, stageSet map[string]bool) []Finding {
 			findings[i].File = job.File
 			findings[i].Line = job.Line
 			findings[i].Column = job.Column
+		}
+	}
+	return findings
+}
+
+// GL047: variable declared with options: must have its default value in the options list.
+
+func checkPipelineVariableOptions(p *model.Pipeline) []Finding {
+	return checkVariableOptionsMap(p.Variables, "", p.SourceFile, 0, 0)
+}
+
+func checkVariableOptionsForJob(name string, job model.Job) []Finding {
+	return checkVariableOptionsMap(job.Variables, name, job.File, job.Line, job.Column)
+}
+
+func checkVariableOptionsMap(vars map[string]any, jobName, file string, line, col int) []Finding {
+	var findings []Finding
+	for varName, v := range vars {
+		m, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		rawOpts, hasOpts := m["options"]
+		rawVal, hasVal := m["value"]
+		if !hasOpts || !hasVal || rawVal == nil {
+			continue
+		}
+		opts, ok := rawOpts.([]any)
+		if !ok || len(opts) == 0 {
+			continue
+		}
+		val := fmt.Sprint(rawVal)
+		inOptions := false
+		for _, opt := range opts {
+			if fmt.Sprint(opt) == val {
+				inOptions = true
+				break
+			}
+		}
+		if !inOptions {
+			findings = append(findings, Finding{
+				Severity: Error,
+				Rule:     RuleVariableValueNotInOptions,
+				Job:      jobName,
+				File:     file,
+				Line:     line,
+				Column:   col,
+				Message:  fmt.Sprintf("variable %q: default value %q is not listed in 'options'", varName, val),
+			})
 		}
 	}
 	return findings

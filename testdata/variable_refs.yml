@@ -17,6 +17,10 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
       variables:
         DEPLOY_TARGET: "production"
+        WORKFLOW_FLAG: "true"
+    # workflow rule referencing a variable set by a sibling rule's variables: — GL032 must not fire
+    - if: '$WORKFLOW_FLAG == "true"'
+      when: always
     - when: always
 
 build:
