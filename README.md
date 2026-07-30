@@ -158,6 +158,7 @@ task build-linux-arm64   # cross-compile for Linux ARM64 (requires a tagged comm
 task build-darwin-amd64  # cross-compile for macOS Intel (requires a tagged commit)
 task build-darwin-arm64  # cross-compile for macOS Apple Silicon (requires a tagged commit)
 task build-windows       # cross-compile for Windows x86-64 (requires a tagged commit)
+task build-windows-arm64 # cross-compile for Windows ARM64 (requires a tagged commit)
 task build-release       # build all platform binaries at once (requires a tagged commit)
 task clean        # remove build artifacts
 ```

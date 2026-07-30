@@ -36,6 +36,7 @@ Pre-built binaries are attached to each [release](https://git.k3nny.fr/k3nny/gli
 | macOS Intel | `glint-vX.Y.Z-darwin-amd64` |
 | macOS Apple Silicon | `glint-vX.Y.Z-darwin-arm64` |
 | Windows x86-64 | `glint-vX.Y.Z-windows-amd64.exe` |
+| Windows ARM64 | `glint-vX.Y.Z-windows-arm64.exe` |
 
 ### Linux (amd64)
 

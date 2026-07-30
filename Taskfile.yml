@@ -226,6 +226,22 @@ tasks:
     generates:
       - "{{.BINARY}}-{{.TAG}}-windows-amd64.exe"
 
+  build-windows-arm64:
+    desc: Build the glint binary for Windows ARM64 (requires a tagged commit)
+    vars:
+      TAG:
+        sh: git describe --tags --exact-match
+    preconditions:
+      - sh: git describe --tags --exact-match
+        msg: "Current commit is not tagged — release build requires a git tag"
+    cmds:
+      - "GOOS=windows GOARCH=arm64 {{.GO}} build -ldflags \"-X main.version={{.TAG}}\" -o {{.BINARY}}-{{.TAG}}-windows-arm64.exe ./cmd/glint/..."
+    sources:
+      - "**/*.go"
+      - go.mod
+    generates:
+      - "{{.BINARY}}-{{.TAG}}-windows-arm64.exe"
+
   build-release:
     desc: Build release binaries for all supported platforms (requires a tagged commit)
     cmds:
@@ -234,6 +250,7 @@ tasks:
       - task: build-darwin-amd64
       - task: build-darwin-arm64
       - task: build-windows
+      - task: build-windows-arm64
 
   fuzz:
     desc: "Run all fuzz targets (set FUZZ_TIME=60s to control per-target duration, default 30s)"
@@ -270,4 +287,4 @@ tasks:
 
   clean:
     desc: Remove build artifacts
-    cmd: rm -f {{.BINARY}} {{.BINARY}}-*.exe {{.BINARY}}-*-linux-amd64
+    cmd: rm -f {{.BINARY}} {{.BINARY}}-*.exe {{.BINARY}}-*-linux-amd64 {{.BINARY}}-*-linux-arm64 {{.BINARY}}-*-darwin-amd64 {{.BINARY}}-*-darwin-arm64

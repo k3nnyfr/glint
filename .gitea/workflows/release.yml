@@ -81,6 +81,17 @@ jobs:
             -o glint-${{ github.ref_name }}-windows-amd64.exe \
             ./cmd/glint/...
 
+      - name: Build Windows (arm64)
+        env:
+          GOOS: windows
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o glint-${{ github.ref_name }}-windows-arm64.exe \
+            ./cmd/glint/...
+
       - name: Create release and upload assets
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,7 +111,8 @@ jobs:
             glint-${TAG}-linux-arm64 \
             glint-${TAG}-darwin-amd64 \
             glint-${TAG}-darwin-arm64 \
-            glint-${TAG}-windows-amd64.exe; do
+            glint-${TAG}-windows-amd64.exe \
+            glint-${TAG}-windows-arm64.exe; do
             curl -sf -X POST \
               -H "Authorization: token $TOKEN" \
               -H "Content-Type: application/octet-stream" \
