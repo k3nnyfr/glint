@@ -96,21 +96,31 @@ func EvalJob(job model.Job, ctx *Context) JobState {
 // All conditions in the group must match for the group to fire.
 // Returns (matched, effectiveWhen, mergedVars). When strict=true, unparseable
 // if: expressions count as no-match; when false, they count as match (permissive).
+//
+// Variables defined on an earlier member of the AND-group are cascaded to later
+// members when evaluating their if: conditions. This matches GitLab CI behaviour
+// where e.g. element 0 sets DEPLOY=true and element 1 can then test $DEPLOY.
 func evalRuleGroup(group []model.Rule, vars func(string) string, ctx *Context, strict bool) (bool, string, map[string]string) {
+	merged := make(map[string]string)
+	effectiveWhen := ""
 	for _, rule := range group {
+		// Cascade: variables accumulated from previous group members are visible
+		// to this member's if: condition, shadowing the base context.
+		cascadeVars := func(key string) string {
+			if v, ok := merged[key]; ok {
+				return v
+			}
+			return vars(key)
+		}
 		var ifOk bool
 		if strict {
-			ifOk = ruleIfMatchesStrict(rule.If, vars)
+			ifOk = ruleIfMatchesStrict(rule.If, cascadeVars)
 		} else {
-			ifOk = ruleIfMatches(rule.If, vars)
+			ifOk = ruleIfMatches(rule.If, cascadeVars)
 		}
 		if !ifOk || !changesMatch(rule.Changes, ctx) {
 			return false, "", nil
 		}
-	}
-	merged := make(map[string]string)
-	effectiveWhen := ""
-	for _, rule := range group {
 		for k, v := range ExtractStringVars(rule.Variables) {
 			merged[k] = v
 		}

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [0.5.1] - 2026-07-30
+
+### Fixed
+
+- **AND-group variable cascading** — variables set by an earlier AND-group member's `variables:` block are now visible when evaluating later members' `if:` conditions. Previously all members were evaluated with the same base context, so a group like `[{if: "$CI_COMMIT_TAG", variables: {DEPLOY: "true"}}, {if: "$DEPLOY"}]` would never fire because `$DEPLOY` was not yet injected when the second element was tested. This matches GitLab CI's actual behaviour.
+
 ## [0.5.0] - 2026-07-30
 
 ### Added

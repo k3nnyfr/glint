@@ -17,6 +17,16 @@ workflow:
       variables:
         PIPELINE_NAME: "deploy"
 
+  # AND-group where element 0 sets PHASE=build; element 1 checks $PHASE (cascade).
+  # Without cascading, element 1 would never match because PHASE is not in
+  # pipeline variables. With cascading, element 1 sees PHASE from element 0.
+  - - if: "$CI_COMMIT_BRANCH"
+      variables:
+        PHASE: build
+    - if: "$PHASE"
+      variables:
+        PIPELINE_NAME: "branch-build"
+
 variables:
   DEPLOY: "false"
 
