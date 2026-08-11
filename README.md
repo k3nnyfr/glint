@@ -27,6 +27,35 @@ A local tool to validate and lint `.gitlab-ci.yml` pipelines without needing a G
 
 See [FEATURES.md](FEATURES.md) for the complete feature reference and lint rules table, and [ROADMAP.md](ROADMAP.md) for planned improvements.
 
+## glint vs glci
+
+[glci](https://gitlab.com/gitlab-org/ci-cd/runner-tools/glci) is the official GitLab tool for running pipelines locally via Docker/Podman. **glint** takes a different approach: it is a pure static analyser — no container engine, no job execution, no side effects. The two tools are complementary.
+
+| Feature | glint | glci |
+|---|:---:|:---:|
+| **Runs jobs in Docker/Podman** | — | ✓ |
+| **Container engine required** | — | ✓ |
+| **Pipeline linting (structured rules)** | ✓ 49 rules | basic |
+| **`rules:if:` / `workflow:` evaluation** | ✓ static | ✓ dynamic |
+| **`extends:` resolution** | ✓ | ✓ |
+| **`include:` resolution** (local, HTTPS, project, component) | ✓ | ✓ |
+| **Render merged YAML** (`glint render`) | ✓ | — |
+| **Context simulation** (`--branch`, `--tag`, `--source`, `--var`) | ✓ static | ✓ dynamic |
+| **Multi-context comparison table** | ✓ | — |
+| **Graph visualization** (terminal tree, Mermaid, SVG/PNG) | ✓ | — |
+| **LSP server / IDE diagnostics** | ✓ | — |
+| **Output formats** (SARIF, JUnit, GitHub annotations) | ✓ | — |
+| **Artifact management** (real artifacts from execution) | — | ✓ |
+| **Job log streaming** | — | ✓ |
+| **Docker-in-Docker / buildx** | — | ✓ |
+| **Embedded OCI registry** | — | ✓ |
+| **GitLab Pages preview** | — | ✓ |
+| **Interactive TUI** | — | ✓ |
+| **Watch mode** (auto-rerun on file change) | — | ✓ |
+| **Pre-built binary, zero runtime deps** | ✓ | — |
+
+Use **glint** when you want fast, offline, dependency-free pipeline validation — in pre-commit hooks, CI itself, or your editor. Use **glci** when you need to actually execute jobs and verify their output locally.
+
 ## Installation
 
 See [INSTALL.md](INSTALL.md) for all options: pre-built binaries (Linux amd64/arm64, macOS Intel/Apple Silicon, Windows), Homebrew tap, and building from source.
