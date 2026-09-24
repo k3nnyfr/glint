@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- **GitHub mirror and release builds** — the repository is mirrored to [github.com/k3nnyfr/glint](https://github.com/k3nnyfr/glint). New `.github/workflows/ci.yml` (vet, staticcheck, test, build) and `.github/workflows/release.yml` build the six platform binaries and publish a GitHub release on each `v*` tag. The Gitea workflows in `.gitea/workflows/` are unchanged; Gitea ignores `.github/workflows/` when `.gitea/workflows/` exists.
+
+### Changed
+
+- **GitHub Action downloads from GitHub releases** — `action.yml` now fetches the binary from `github.com/k3nnyfr/glint` releases instead of git.k3nny.fr, and picks the binary matching the runner OS (Linux, macOS, Windows) and architecture (x64, ARM64) instead of always using `linux-amd64`. Reference it as `k3nnyfr/glint@<tag>`.
+- **Homebrew tap renamed** — documentation now points to `k3nnyfr/homebrew-glint`.
+
 ## [0.5.1] - 2026-07-30
 
 ### Fixed

@@ -1,8 +1,8 @@
 # GitHub Actions composite action — glint pipeline validator
 #
-# To use this action, mirror this repository to GitHub as k3nny/glint, then:
+# Usage (from the GitHub mirror at k3nnyfr/glint):
 #
-#   - uses: k3nny/glint@v0.2.28
+#   - uses: k3nnyfr/glint@vX.Y.Z
 #     with:
 #       file: .gitlab-ci.yml   # optional
 #
@@ -22,7 +22,7 @@ branding:
 inputs:
   version:
     description: >-
-      glint release tag to install (e.g. 'v0.2.28'). Defaults to 'latest'
+      glint release tag to install (e.g. 'v0.6.0'). Defaults to 'latest'
       which resolves to the newest published release.
     required: false
     default: 'latest'
@@ -42,20 +42,36 @@ runs:
       shell: bash
       env:
         GLINT_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
+        REPO="k3nnyfr/glint"
         if [ "$GLINT_VERSION" = "latest" ]; then
           GLINT_VERSION=$(curl -sf \
-            "https://git.k3nny.fr/api/v1/repos/k3nny/glint/releases?limit=1" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${REPO}/releases/latest" \
             | grep '"tag_name"' | head -1 | cut -d'"' -f4)
         fi
+        case "$RUNNER_OS" in
+          Linux)   OS=linux ;;
+          macOS)   OS=darwin ;;
+          Windows) OS=windows ;;
+          *) echo "unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64)   ARCH=amd64 ;;
+          ARM64) ARCH=arm64 ;;
+          *) echo "unsupported runner arch: $RUNNER_ARCH" >&2; exit 1 ;;
+        esac
+        EXT=""
+        [ "$OS" = "windows" ] && EXT=".exe"
         DEST="$RUNNER_TEMP/glint-bin"
         mkdir -p "$DEST"
-        URL="https://git.k3nny.fr/k3nny/glint/releases/download/${GLINT_VERSION}/glint-${GLINT_VERSION}-linux-amd64"
-        curl -sfL "$URL" -o "$DEST/glint"
-        chmod +x "$DEST/glint"
+        URL="https://github.com/${REPO}/releases/download/${GLINT_VERSION}/glint-${GLINT_VERSION}-${OS}-${ARCH}${EXT}"
+        curl -sfL "$URL" -o "$DEST/glint${EXT}"
+        chmod +x "$DEST/glint${EXT}"
         echo "$DEST" >> "$GITHUB_PATH"
-        "$DEST/glint" --version
+        "$DEST/glint${EXT}" --version
 
     - name: Run glint check
       shell: bash

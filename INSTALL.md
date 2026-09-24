@@ -27,7 +27,11 @@ sudo mv glint /usr/local/bin/
 
 ## Option 2 — Download a pre-built binary
 
-Pre-built binaries are attached to each [release](https://git.k3nny.fr/k3nny/glint/releases).
+Pre-built binaries are attached to each release, on both
+[git.k3nny.fr](https://git.k3nny.fr/k3nny/glint/releases) and the
+[GitHub mirror](https://github.com/k3nnyfr/glint/releases). The examples below
+use git.k3nny.fr; replace the base URL with
+`https://github.com/k3nnyfr/glint/releases/download` to download from GitHub.
 
 | Platform | File |
 |----------|------|
@@ -84,14 +88,14 @@ glint --version
 
 ## Option 3 — Homebrew (macOS and Linux)
 
-A Homebrew tap is available at `k3nny/glint`.
+A Homebrew tap is available at `k3nnyfr/glint`.
 
 > **First-time setup:** create a GitHub repository named `homebrew-glint`
-> under your account and copy [`Formula/glint.rb`](Formula/glint.rb) into it.
+> under the `k3nnyfr` account and copy [`Formula/glint.rb`](Formula/glint.rb) into it.
 > Users then install via the tap as shown below.
 
 ```bash
-brew tap k3nny/glint https://github.com/k3nny/homebrew-glint
+brew tap k3nnyfr/glint https://github.com/k3nnyfr/homebrew-glint
 brew install glint
 ```
 

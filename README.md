@@ -58,6 +58,8 @@ Use **glint** when you want fast, offline, dependency-free pipeline validation â
 
 ## Installation
 
+glint is developed on [git.k3nny.fr/k3nny/glint](https://git.k3nny.fr/k3nny/glint) and mirrored to GitHub at [github.com/k3nnyfr/glint](https://github.com/k3nnyfr/glint). Release binaries are published on both.
+
 See [INSTALL.md](INSTALL.md) for all options: pre-built binaries (Linux amd64/arm64, macOS Intel/Apple Silicon, Windows), Homebrew tap, and building from source.
 
 Quick start (Linux/macOS, building from source):
@@ -72,7 +74,7 @@ sudo mv glint /usr/local/bin/
 Homebrew:
 
 ```bash
-brew tap k3nny/glint https://github.com/k3nny/homebrew-glint
+brew tap k3nnyfr/glint https://github.com/k3nnyfr/homebrew-glint
 brew install glint
 ```
 
@@ -133,16 +135,17 @@ The component downloads the glint Linux binary, runs `glint check`, and respects
 
 ### GitHub Actions
 
-Copy [`action.yml`](action.yml) from this repository, or mirror this repo to GitHub as `k3nny/glint` and reference it directly:
+Reference the action from the GitHub mirror:
 
 ```yaml
-- uses: k3nny/glint@v0.3.0
+- uses: k3nnyfr/glint@vX.Y.Z
   with:
     file: .gitlab-ci.yml   # optional, default: .gitlab-ci.yml
     args: '--format sarif' # optional
+    version: latest        # optional, default: latest
 ```
 
-The action downloads the glint Linux binary into `$RUNNER_TEMP` and runs `glint check`. Only Linux runners are supported (matches the available release binary).
+The action downloads the glint binary matching the runner (Linux, macOS or Windows; x64 or ARM64) from the GitHub releases into `$RUNNER_TEMP` and runs `glint check`. You can also copy [`action.yml`](action.yml) into your own repository and use it as a local action.
 
 ### VS Code extension
 
