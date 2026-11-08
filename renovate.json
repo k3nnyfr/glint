@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "packageRules": [
+    {
+      "description": "@types/node must match the Node.js runtime bundled with the minimum supported VS Code (engines.vscode ^1.82.0 ships Node 18)",
+      "matchFileNames": ["editors/vscode/package.json"],
+      "matchPackageNames": ["@types/node"],
+      "allowedVersions": "<21"
+    },
+    {
+      "description": "vscode-languageclient majors require a newer VS Code engine and TypeScript moduleResolution changes; migrate manually",
+      "matchFileNames": ["editors/vscode/package.json"],
+      "matchPackageNames": ["vscode-languageclient"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
