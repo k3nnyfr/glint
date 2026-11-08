@@ -15,6 +15,7 @@ This project uses [Semantic Versioning](https://semver.org).
 
 - **GitHub Action downloads from GitHub releases** — `action.yml` now fetches the binary from `github.com/k3nnyfr/glint` releases instead of git.k3nny.fr, and picks the binary matching the runner OS (Linux, macOS, Windows) and architecture (x64, ARM64) instead of always using `linux-amd64`. Reference it as `k3nnyfr/glint@<tag>`.
 - **Homebrew tap renamed** — documentation now points to `k3nnyfr/homebrew-glint`.
+- **Renovate rules for the VS Code extension** — new `renovate.json`: `@types/node` is capped below v21 to match the Node.js runtime bundled with the minimum supported VS Code (1.82, Node 18), and major `vscode-languageclient` updates are disabled until a manual migration (v10+ needs VS Code ≥ 1.91 and a `moduleResolution` change in `tsconfig.json`).
 
 ## [0.5.1] - 2026-07-30
 
